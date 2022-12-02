@@ -1,0 +1,4 @@
+classes=4
+train=/home/huyu/dataset/AGC-FVM/roidepth/kitti/train/fileList.txt
+valid=/home/huyu/dataset/AGC-FVM/roidepth/kitti/valid/fileList.txt
+names=data/cls4.names

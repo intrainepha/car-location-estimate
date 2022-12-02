@@ -1,0 +1,4 @@
+classes=4
+train=/home/huyu/project/yolov3-roidepth/roidepth-test-data/train.txt
+valid=/home/huyu/project/yolov3-roidepth/roidepth-test-data/val.txt
+names=data/cls4.names
