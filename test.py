@@ -1,28 +1,32 @@
 import argparse
 import json
 import numpy as np
+import absl.logging as log
+log.set_verbosity(log.INFO)
 
 from torch.utils.data import DataLoader
 
 from models import *
 from utils.datasets import *
 from utils.utils import *
-from scripts.CalculateIndicators import *
+from scripts.cal_indicators import *
 
 
-def test(cfg,
-         data,
-         weights=None,
-         batch_size=16,
-         imgsz=416,
-         conf_thres=0.001,
-         iou_thres=0.6,  # for nms
-         save_json=False,
-         single_cls=False,
-         augment=False,
-         model=None,
-         dataloader=None,
-         multi_label=True):
+def test(
+    cfg,
+    data,
+    weights=None,
+    batch_size=16,
+    imgsz=416,
+    conf_thres=0.001,
+    iou_thres=0.6,
+    save_json=False,
+    single_cls=False,
+    augment=False,
+    model=None,
+    dataloader=None,
+    multi_label=True
+):
     # Initialize/load model and set device
     if model is None:
         is_training = False
@@ -135,10 +139,14 @@ def test(cfg,
                 box = xyxy2xywh(box)  # xywh
                 box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
                 for p, b in zip(pred.tolist(), box.tolist()):
-                    jdict.append({'image_id': image_id,
-                                  'category_id': coco91class[int(p[5])],
-                                  'bbox': [round(x, 3) for x in b],
-                                  'score': round(p[4], 5)})
+                    jdict.append(
+                        {
+                            'image_id': image_id,
+                            'category_id': coco91class[int(p[5])],
+                            'bbox': [round(x, 3) for x in b],
+                            'score': round(p[4], 5)
+                        }
+                    )
 
             # Assign all predictions as incorrect
             correct = torch.zeros(pred.shape[0], niou, dtype=torch.bool, device=device)
@@ -299,16 +307,18 @@ if __name__ == '__main__':
 
     # task = 'test', 'study', 'benchmark'
     if opt.task == 'test':  # (default) test normally
-        test(opt.cfg,
-             opt.data,
-             opt.weights,
-             opt.batch_size,
-             opt.img_size,
-             opt.conf_thres,
-             opt.iou_thres,
-             opt.save_json,
-             opt.single_cls,
-             opt.augment)
+        test(
+            opt.cfg,
+            opt.data,
+            opt.weights,
+            opt.batch_size,
+            opt.img_size,
+            opt.conf_thres,
+            opt.iou_thres,
+            opt.save_json,
+            opt.single_cls,
+            opt.augment
+        )
 
     elif opt.task == 'benchmark':  # mAPs at 256-640 at conf 0.5 and 0.7
         y = []

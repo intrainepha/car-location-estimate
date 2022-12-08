@@ -103,7 +103,7 @@ def VisualizeManfu(folder):
         else:
             color = (255,255,255)
 
-        thickness = img.shape[0]<img.shape[1] ? img.shape[0]/128 : img.shape[1]/128 
+        thickness = img.shape[0]/128 if img.shape[0]<img.shape[1] else img.shape[1]/128 
         img = cv2.rectangle(img, (xmin,ymin), (xmax,ymax), color, 2)
         cv2.imwrite(os.path.join(vis_folder, file_id+".jpg"), img)
 
@@ -149,7 +149,7 @@ def VisualizeAnngic(folder):
         else:
             color = (255,255,255)
 
-        thickness = img.shape[0]<img.shape[1] ? img.shape[0]/128 : img.shape[1]/128 
+        thickness = img.shape[0]/128 if img.shape[0]<img.shape[1] else img.shape[1]/128 
         img = cv2.rectangle(img, (xmin,ymin), (xmax,ymax), color, 2)
         cv2.imwrite(os.path.join(vis_folder, file_id+".jpg"), img)
 

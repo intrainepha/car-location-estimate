@@ -1,12 +1,3 @@
-'''
-Author: huyu
-Date: 2020-11-30 09:14:15
-LastEditTime: 2020-12-07 15:19:14
-LastEditors: Please set LastEditors
-Description: Crop from kitti data to ROI, with target label format as same as it in darknet 
-FilePath: /yolov3-roidepth/utils/crop_kitti2ROI.py
-'''
-
 import argparse
 import os 
 import cv2

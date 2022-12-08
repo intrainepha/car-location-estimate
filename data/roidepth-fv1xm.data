@@ -1,4 +1,4 @@
 classes=4
-train=/home/huyu/dataset/fv1xm/roi-gen2/train/fileList.txt
-valid=/home/huyu/dataset/fv1xm/roi-gen2/test/fileList.txt
+train=dataset/train/paths.txt
+valid=dataset/test/paths.txt
 names=data/cls4.names
