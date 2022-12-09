@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/xml"
 	"flag"
+	"image/png"
 	"log"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -43,15 +45,140 @@ type Location struct {
 	X string `xml:"x"`
 }
 
-func crop() error {
-	/*Crop Region of interest (ROI) from image with label formated in kitti approch:
+func checkError(e error) {
+	if e != nil {
+		log.Fatal(e)
+	}
+}
+
+func contains(ss []string, str string) bool {
+	/*Check if a string exists in a slice of string
+
+	Args:
+		str(string): string data
+
+	Returns:
+		(bool): Check result
+	*/
+
+	for _, v := range ss {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
+}
+
+func str2int(str string) int {
+	/*Convert string to int
+
+	Args:
+		str(string): string data
+
+	Returns:
+		floatNum(float64): int data
+	*/
+
+	intNum, err := strconv.Atoi(str)
+	checkError(err)
+
+	return intNum
+}
+
+func str2float64(str string) float64 {
+	/*Convert string to float64
+
+	Args:
+		str(string): string data
+
+	Returns:
+		intNum(float64): float64 data
+	*/
+
+	floatNum, err := strconv.ParseFloat(str, 64)
+	checkError(err)
+
+	return floatNum
+}
+
+func crop(root string, freq int, cls []string) error {
+	/*Crop Region of interest (ROI) from image with label formated in kitti approch.
+			root/
+				├──images
+				|   └──*.png
+				└──labels
+				└──*.txt
 
 	Args:
 		root(string): Directory contains data files
+		freq(int): Frequence for filtering images
 
 	Returns:
 		error
 	*/
+
+	root, err := filepath.Abs(root)
+	checkError(err)
+	imgDir := path.Join(root, "images")
+	labelDir := path.Join(root, "labels")
+	// roiImgDir := path.Join(root, "roi_img")
+	// roiXmlDir := path.Join(root, "roi_xml")
+	// roiTxtDir := path.Join(root, "roi_txt")
+	files, err := os.ReadDir(imgDir)
+	checkError(err)
+	for i, f := range files {
+		if i%freq != 0 {
+			continue
+		}
+		imgFile, err := os.Open(path.Join(imgDir, f.Name()))
+		checkError(err)
+		defer imgFile.Close()
+		imgData, err := png.DecodeConfig(imgFile)
+		imgW, imgH := imgData.Width, imgData.Height
+		checkError(err)
+		bytes, err := os.ReadFile(path.Join(labelDir, strings.Replace(f.Name(), ".png", ".txt", 1)))
+		checkError(err)
+		for _, l := range strings.Split(string(bytes), "\n") {
+			if l == "" {
+				continue
+			}
+			info := strings.Split(l, " ")
+			// info[1]: float from 0(non-truncated) to 1(truncated)
+			truncated := str2float64(info[1])
+			// info[2]: 0->fully visible, 1->partial occluded, 2->largely occluded, 3=unknown
+			occluded := str2int(info[2])
+			locX, locY := str2float64(info[11]), str2float64(info[13])
+			// Filter with X range=[-8, 8], Y range=[0, 80]
+			if truncated != 0 || occluded != 0 || !contains(cls, info[0]) || math.Abs(locX) > 8 || locY < 0 || locY > 80 {
+				continue
+			}
+			xmin, xmax := str2float64(info[4]), str2float64(info[5])
+			ymin, ymax := str2float64(info[6]), str2float64(info[7])
+			w, h := xmax-xmin, ymax-ymin
+			offsetX, offsetY := w*0.25, h*0.25
+			roiXmin, roiXmax := int(xmin-offsetX), int(xmax+offsetX)
+			roiYmin, roiYmax := int(ymin-offsetY), int(ymax+offsetY)
+			if roiXmin < 0 {
+				roiXmin = 0
+			}
+			if roiYmin < 0 {
+				roiYmin = 0
+			}
+			if roiXmax >= imgW {
+				roiXmax = imgW - 1
+			}
+			if roiYmax >= imgH {
+				roiYmax = imgH - 1
+			}
+			roiW, roiH := roiXmax-roiXmin+1, roiYmax-roiYmin+1
+			// TODO:
+			// 	1. Calculate bbox relative to ROI;
+			// 	2. Write ROI image;
+			// 	2. Write xml;
+			// 	2. Write txt;
+		}
+	}
 
 	return nil
 }
@@ -62,7 +189,7 @@ func list(root string, cls []string) error {
 
 	Args:
 		root(string): Directory contains data files
-			dataset_directory/
+			root/
 				├──class_0
 				|   ├──data_file_0
 				|   ├── ...
@@ -80,32 +207,21 @@ func list(root string, cls []string) error {
 
 	root, err := filepath.Abs(root)
 	log.Println("Target Directory:", root)
-	if err != nil {
-		log.Fatal(err)
-	}
+	checkError(err)
 	txt := path.Join(root, "paths.txt")
-	buffer, err := os.OpenFile(txt, os.O_RDWR|os.O_CREATE, 0755)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	defer buffer.Close()
+	file, err := os.OpenFile(txt, os.O_RDWR|os.O_CREATE, 0755)
+	checkError(err)
+	defer file.Close()
 	for i, c := range cls {
 		log.Println(i, c)
 		imgDir := path.Join(root, c, "images")
 		_, err := os.Stat(imgDir)
-		if err != nil {
-			log.Fatal(err)
-			return err
-		}
-		imgs, err := os.ReadDir(imgDir)
-		if err != nil {
-			log.Fatal(err)
-			return err
-		}
-		for _, f := range imgs {
+		checkError(err)
+		files, err := os.ReadDir(imgDir)
+		checkError(err)
+		for _, f := range files {
 			path := path.Join(imgDir, f.Name())
-			buffer.WriteString(path + "\n")
+			file.WriteString(path + "\n")
 		}
 
 	}
@@ -124,22 +240,17 @@ func genTxt(root string, cls []string) error {
 	*/
 
 	root, err := filepath.Abs(root)
-	if err != nil {
-		log.Fatal(err)
-	}
+	checkError(err)
 	for id, c := range cls {
 		xmlDir := path.Join(root, c, "annotations")
 		txtDir := path.Join(root, c, "labels")
 		xmls, err := os.ReadDir(xmlDir)
-		if err != nil {
-			log.Fatal(err)
-			return err
-		}
+		checkError(err)
 		for _, x := range xmls {
 			xmlPath := path.Join(xmlDir, x.Name())
-			xmlData, _ := os.ReadFile(xmlPath)
+			bytes, _ := os.ReadFile(xmlPath)
 			var data XMLData
-			_ = xml.Unmarshal([]byte(xmlData), &data)
+			_ = xml.Unmarshal([]byte(bytes), &data)
 			objXCtr := strconv.FormatFloat((data.Obj.Box.Xmin+data.Obj.Box.Xmax)/2/data.Roi.Size.W, 'g', -1, 64)
 			objYCtr := strconv.FormatFloat((data.Obj.Box.Ymin+data.Obj.Box.Ymax)/2/data.Roi.Size.H, 'g', -1, 64)
 			objW := strconv.FormatFloat((data.Obj.Box.Xmax-data.Obj.Box.Xmin+1)/data.Roi.Size.W, 'g', -1, 64)
@@ -157,10 +268,7 @@ func genTxt(root string, cls []string) error {
 			txtName := strings.Replace(x.Name(), ".xml", ".txt", 1)
 			txtPath := path.Join(txtDir, txtName)
 			buffer, err := os.OpenFile(txtPath, os.O_RDWR|os.O_CREATE, 0755)
-			if err != nil {
-				log.Fatal(err)
-				return err
-			}
+			checkError(err)
 			defer buffer.Close()
 			buffer.WriteString(strings.Join(str, " "))
 		}
@@ -176,25 +284,29 @@ func main() {
 	gtCmd := flag.NewFlagSet("gt", flag.ExitOnError)
 	gtDir := gtCmd.String("dir", "", "Directory")
 	gtCls := gtCmd.String("cls", "", "Classes")
+	cropCmd := flag.NewFlagSet("gt", flag.ExitOnError)
+	cropDir := cropCmd.String("dir", "", "Directory")
+	cropFreq := cropCmd.Int("freq", 1, "Frequence")
+	cropCls := cropCmd.String("cls", "", "Classes")
 	if len(os.Args) < 2 {
 		log.Fatal("Expected subcommands!")
-		os.Exit(1)
 	}
 	switch os.Args[1] {
 	case "list":
 		listCmd.Parse(os.Args[2:])
 		classes := strings.Split(*listCls, ",")
 		err := list(*listDir, classes)
-		if err != nil {
-			log.Fatal(err)
-		}
+		checkError(err)
 	case "gt":
 		gtCmd.Parse(os.Args[2:])
 		classes := strings.Split(*gtCls, ",")
 		err := genTxt(*gtDir, classes)
-		if err != nil {
-			log.Fatal(err)
-		}
+		checkError(err)
+	case "crop":
+		cropCmd.Parse(os.Args[2:])
+		classes := strings.Split(*cropCls, ",")
+		err := crop(*cropDir, *cropFreq, classes)
+		checkError(err)
 	default:
 		log.Println("Expected subcommands")
 		os.Exit(1)
