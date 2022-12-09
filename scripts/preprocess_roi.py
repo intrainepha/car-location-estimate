@@ -83,21 +83,21 @@ def WriteTXT(txtPath, imgSize, roiSize, classID, bndBox, locationY, locationX, r
             str(y_ctr/float(roiSize[1])) +' '+\
             str(bw/float(roiSize[0]))+' '+\
             str(bh/float(roiSize[1])) # bbox:x,y,w,h
-        # str_info = \
-        #   str_info+' '+\
-        #   str(float(locationY)/100)+' '+\
-        #   str((float(locationX)+8)/16) # location_y,location_x
-        # roi_x_ctr, roi_y_ctr, roi_bw, roi_bh = \
-        #   (float(roiInfo[0])+float(roiInfo[2]))/2, \
-        #   (float(roiInfo[1])+float(roiInfo[3]))/2, \
-        #   float(roiInfo[2])-float(roiInfo[0])+1, \
-        #   float(roiInfo[3])-float(roiInfo[1])+1
-        # str_info = \
-        #   str_info+' '+\
-        #   str(roi_x_ctr/imgSize[0])+' '+\
-        #   str(roi_y_ctr/imgSize[1])+' '+\
-        #   str(roi_bw/imgSize[0])+' '+\
-        #   str(roi_bh/imgSize[1]) # roi_info:x,y,w,h
+        str_info = \
+          str_info+' '+\
+          str(float(locationY)/100)+' '+\
+          str((float(locationX)+8)/16) # location_y,location_x
+        roi_x_ctr, roi_y_ctr, roi_bw, roi_bh = \
+          (float(roiInfo[0])+float(roiInfo[2]))/2, \
+          (float(roiInfo[1])+float(roiInfo[3]))/2, \
+          float(roiInfo[2])-float(roiInfo[0])+1, \
+          float(roiInfo[3])-float(roiInfo[1])+1
+        str_info = \
+          str_info+' '+\
+          str(roi_x_ctr/imgSize[0])+' '+\
+          str(roi_y_ctr/imgSize[1])+' '+\
+          str(roi_bw/imgSize[0])+' '+\
+          str(roi_bh/imgSize[1]) # roi_info:x,y,w,h
         f.write(str_info)
     # print("%s"%txtPath)
     return True
