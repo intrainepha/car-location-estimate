@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/xml"
 	"flag"
+	"fmt"
 	"image/png"
 	"log"
 	"math"
@@ -122,7 +123,7 @@ func crop(root string, freq int, cls []string) error {
 	checkError(err)
 	imgDir := path.Join(root, "images")
 	labelDir := path.Join(root, "labels")
-	// roiImgDir := path.Join(root, "roi_img")
+	roiImgDir := path.Join(root, "roi_img")
 	// roiXmlDir := path.Join(root, "roi_xml")
 	// roiTxtDir := path.Join(root, "roi_txt")
 	files, err := os.ReadDir(imgDir)
@@ -139,7 +140,7 @@ func crop(root string, freq int, cls []string) error {
 		checkError(err)
 		bytes, err := os.ReadFile(path.Join(labelDir, strings.Replace(f.Name(), ".png", ".txt", 1)))
 		checkError(err)
-		for _, l := range strings.Split(string(bytes), "\n") {
+		for j, l := range strings.Split(string(bytes), "\n") {
 			if l == "" {
 				continue
 			}
@@ -153,30 +154,36 @@ func crop(root string, freq int, cls []string) error {
 			if truncated != 0 || occluded != 0 || !contains(cls, info[0]) || math.Abs(locX) > 8 || locY < 0 || locY > 80 {
 				continue
 			}
-			xmin, xmax := str2float64(info[4]), str2float64(info[5])
-			ymin, ymax := str2float64(info[6]), str2float64(info[7])
-			w, h := xmax-xmin, ymax-ymin
-			offsetX, offsetY := w*0.25, h*0.25
-			roiXmin, roiXmax := int(xmin-offsetX), int(xmax+offsetX)
-			roiYmin, roiYmax := int(ymin-offsetY), int(ymax+offsetY)
-			if roiXmin < 0 {
-				roiXmin = 0
+			bbox := [4]float64{str2float64(info[4]), str2float64(info[5]), str2float64(info[6]), str2float64(info[7])}
+			// fmt.Println(bbox)
+			bw, bh := bbox[2]-bbox[0], bbox[3]-bbox[1]
+			offsetX, offsetY := bw*0.25, bh*0.25
+			// fmt.Println(offsetX, offsetY)
+			rbox := [4]float64{bbox[0] - offsetX, bbox[2] + offsetX, bbox[1] - offsetY, bbox[3] + offsetY}
+			if rbox[0] < 0 {
+				rbox[0] = 0
 			}
-			if roiYmin < 0 {
-				roiYmin = 0
+			if rbox[1] < 0 {
+				rbox[1] = 0
 			}
-			if roiXmax >= imgW {
-				roiXmax = imgW - 1
+			if rbox[2] >= float64(imgW) {
+				rbox[2] = float64(imgW) - 1
 			}
-			if roiYmax >= imgH {
-				roiYmax = imgH - 1
+			if rbox[3] >= float64(imgH) {
+				rbox[3] = float64(imgH) - 1
 			}
-			roiW, roiH := roiXmax-roiXmin+1, roiYmax-roiYmin+1
-			// TODO:
-			// 	1. Calculate bbox relative to ROI;
-			// 	2. Write ROI image;
-			// 	2. Write xml;
-			// 	2. Write txt;
+			// Calculate bbox relative to ROI
+			obox := [4]float64{bbox[0] - rbox[0], bbox[1] + rbox[1], bbox[2] - rbox[0], bbox[3] + rbox[1]}
+			rw, rh := rbox[2]-rbox[0]+1, rbox[3]-rbox[1]+1
+			// fmt.Println(obox, rw, rh)
+			if obox[0] < 0 || obox[1] < 0 || obox[2] > rw || obox[3] > rh {
+				continue
+			}
+			// Write ROI image
+			roiImgPath := path.Join(roiImgDir, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".png", 1))
+			fmt.Println(roiImgPath)
+			// Write xml
+			// Write txt
 		}
 	}
 
