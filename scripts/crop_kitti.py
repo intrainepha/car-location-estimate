@@ -166,11 +166,29 @@ def write_XML(annoPath, imgPath, imgSize, className, roiInfo, bndBox, locationY,
 def write_txt(txtPath, imgSize, roiSize, className, bndBox, locationY, locationX, roiInfo) -> bool:
     with open(txtPath, 'w', encoding="utf-8") as f:
         str_info = '0' # class
-        x_ctr, y_ctr, bw, bh = (bndBox[0]+bndBox[2])/2, (bndBox[1]+bndBox[3])/2, bndBox[2]-bndBox[0]+1, bndBox[3]-bndBox[1]+1
-        str_info = str_info+' '+str(x_ctr/roiSize[0])+' '+str(y_ctr/roiSize[1])+' '+str(bw/roiSize[0])+' '+str(bh/roiSize[1]) # bbox:x,y,w,h
+        x_ctr, y_ctr, bw, bh = \
+            (bndBox[0]+bndBox[2])/2, \
+            (bndBox[1]+bndBox[3])/2, \
+            bndBox[2]-bndBox[0]+1, \
+            bndBox[3]-bndBox[1]+1
+        str_info = \
+            str_info+' '+\
+            str(x_ctr/roiSize[0])+' '+\
+            str(y_ctr/roiSize[1])+' '+\
+            str(bw/roiSize[0])+' '+\
+            str(bh/roiSize[1]) # bbox:x,y,w,h
         str_info = str_info+' '+str(locationY)+' '+str(locationX) # location_y,location_x
-        roi_x_ctr, roi_y_ctr, roi_bw, roi_bh = (roiInfo[0]+roiInfo[2])/2, (roiInfo[1]+roiInfo[3])/2, roiInfo[2]-roiInfo[0]+1, roiInfo[3]-roiInfo[1]+1
-        str_info = str_info+' '+str(x_ctr/imgSize[1])+' '+str(y_ctr/imgSize[0])+' '+str(bw/imgSize[1])+' '+str(bh/imgSize[0]) # roi_info:x,y,w,h
+        roi_x_ctr, roi_y_ctr, roi_bw, roi_bh = \
+            (roiInfo[0]+roiInfo[2])/2,\
+            (roiInfo[1]+roiInfo[3])/2,\
+            roiInfo[2]-roiInfo[0]+1,\
+            roiInfo[3]-roiInfo[1]+1
+        str_info = \
+            str_info+' '+\
+            str(x_ctr/imgSize[1])+' '+\
+            str(y_ctr/imgSize[0])+' '+\
+            str(bw/imgSize[1])+' '+\
+            str(bh/imgSize[0]) # roi_info:x,y,w,h
         f.write(str_info)
     # print("%s"%txtPath)
     return True

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/xml"
 	"flag"
-	"fmt"
-	"image/png"
+	"image"
+	"image/draw"
+	"image/jpeg"
+	_ "image/png"
 	"log"
 	"math"
 	"os"
@@ -42,17 +45,24 @@ type Object struct {
 }
 
 type Location struct {
-	Y string `xml:"y"`
 	X string `xml:"x"`
+	Y string `xml:"y"`
 }
 
-func checkError(e error) {
+func checkE(e error) {
 	if e != nil {
-		log.Fatal(e)
+		log.Panic(e)
 	}
 }
 
-func contains(ss []string, str string) bool {
+func cleanDir(dir string) {
+	err := os.RemoveAll(dir)
+	checkE(err)
+	err = os.MkdirAll(dir, 0755)
+	checkE(err)
+}
+
+func getClassID(ss []string, str string) (int, bool) {
 	/*Check if a string exists in a slice of string
 
 	Args:
@@ -62,13 +72,13 @@ func contains(ss []string, str string) bool {
 		(bool): Check result
 	*/
 
-	for _, v := range ss {
+	for i, v := range ss {
 		if v == str {
-			return true
+			return i, true
 		}
 	}
 
-	return false
+	return -1, false
 }
 
 func str2int(str string) int {
@@ -82,12 +92,12 @@ func str2int(str string) int {
 	*/
 
 	intNum, err := strconv.Atoi(str)
-	checkError(err)
+	checkE(err)
 
 	return intNum
 }
 
-func str2float64(str string) float64 {
+func str2f64(str string) float64 {
 	/*Convert string to float64
 
 	Args:
@@ -98,12 +108,156 @@ func str2float64(str string) float64 {
 	*/
 
 	floatNum, err := strconv.ParseFloat(str, 64)
-	checkError(err)
+	checkE(err)
 
 	return floatNum
 }
 
-func crop(root string, freq int, cls []string) error {
+func f642Str(num float64) string {
+	/*Convert float64 to string
+
+	Args:
+		num(float64): float64 data
+
+	Returns:
+		(string): string data
+	*/
+
+	return strconv.FormatFloat(num, 'g', -1, 64)
+}
+
+func loadImg(path string) (image.Image, [2]int) {
+	/*Load image fron a file path
+
+	Args:
+		path(string): Path to image file
+
+	Returns:
+		(image.Image): Readed image data
+		([2]int): Image size=[width, height]
+	*/
+
+	imgBytes, err := os.ReadFile(path)
+	checkE(err)
+	imgInfo, _, err := image.DecodeConfig(bytes.NewReader(imgBytes))
+	checkE(err)
+	size := [2]int{imgInfo.Width, imgInfo.Height}
+	data, _, err := image.Decode(bytes.NewReader(imgBytes))
+	checkE(err)
+
+	return data, size
+}
+
+func saveImg(img image.Image, path string) {
+	/*Save image in format=[png, jpg, gif]
+
+	Args:
+		img(image.Image): Readed image data
+		path(image.Image): save path
+
+	Returns:
+		None
+	*/
+
+	formats := [...]string{"png", "jpg"}
+	strs := strings.Split(path, ".")
+	suffix := strs[len(strs)-1]
+	var confirmed bool = false
+	for _, f := range formats {
+		if suffix == f {
+			confirmed = true
+			break
+		}
+	}
+	if !confirmed {
+		log.Panic("Unsupported format:", suffix)
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0755)
+	checkE(err)
+	err = jpeg.Encode(f, img, &jpeg.Options{Quality: 100})
+	checkE(err)
+}
+
+func cropImg(img image.Image, rect image.Rectangle) image.Image {
+	/*Save image in format=[png, jpg, gif]
+
+	Args:
+		img(image.Image): Readed image data
+		path(image.Image): save path
+
+	Returns:
+		None
+	*/
+
+	var res image.Image
+	type subImageSupported interface {
+		SubImage(r image.Rectangle) image.Image
+	}
+	if sImg, ok := img.(subImageSupported); ok {
+		res = sImg.SubImage(rect)
+	} else {
+		res := image.NewRGBA(rect)
+		draw.Draw(res, rect, img, rect.Min, draw.Src)
+	}
+
+	return res
+}
+
+func saveTXT(path string, imgSzie [2]int, id int, rbox Box, location [2]float64, obox Box) {
+	/*Calculate data and write to *.txt files.
+
+	Args:
+		path(string): TXT file path
+		cls([]string): classes you choose to generate
+
+	Returns:
+		error
+	*/
+
+	ow, oh := obox.Xmax-obox.Xmin+1, obox.Ymax-obox.Ymin+1
+	rw, rh := rbox.Xmax-rbox.Xmin+1, rbox.Ymax-rbox.Ymin+1
+	xCtrObj, yCtrObj := (obox.Xmin+obox.Xmax)/2/rw, (obox.Ymin+obox.Ymax)/2/rh
+	wObj, hObj := ow/rw, oh/rh
+	xCtrROI, yCtrROI := (rbox.Xmin+rbox.Xmax)/2/float64(imgSzie[0]), (rbox.Ymin+rbox.Ymax)/2/float64(imgSzie[1])
+	wROI, hROI := rw/float64(imgSzie[0]), oh/float64(imgSzie[1])
+	str := []string{
+		strconv.Itoa(id),
+		f642Str(xCtrObj), f642Str(yCtrObj), f642Str(wObj), f642Str(hObj),
+		f642Str(location[1]), f642Str(location[0]),
+		f642Str(xCtrROI), f642Str(yCtrROI), f642Str(wROI), f642Str(hROI),
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0755)
+	checkE(err)
+	defer file.Close()
+	file.WriteString(strings.Join(str, " "))
+}
+
+func ruleBox(box Box, size [2]int) {
+	/*Adjust box value taht out of boundary
+
+	Args:
+		box([4]float64): Box=[Xtl, Ytl, Xbr, Ybr]
+		size([2]int): Boundary=[X-aix boundary, y-aix boundary]
+
+	Returns:
+		error
+	*/
+
+	if box.Xmin < 0 {
+		box.Xmin = 0
+	}
+	if box.Ymin < 0 {
+		box.Ymin = 0
+	}
+	if box.Xmax >= float64(size[0]) {
+		box.Xmax = float64(size[1]) - 1
+	}
+	if box.Ymax >= float64(size[0]) {
+		box.Ymax = float64(size[1]) - 1
+	}
+}
+
+func runCrop(root string, freq int, cls []string) error {
 	/*Crop Region of interest (ROI) from image with label formated in kitti approch.
 			root/
 				├──images
@@ -120,77 +274,69 @@ func crop(root string, freq int, cls []string) error {
 	*/
 
 	root, err := filepath.Abs(root)
-	checkError(err)
+	checkE(err)
 	imgDir := path.Join(root, "images")
 	labelDir := path.Join(root, "labels")
-	roiImgDir := path.Join(root, "roi_img")
-	// roiXmlDir := path.Join(root, "roi_xml")
-	// roiTxtDir := path.Join(root, "roi_txt")
+	imgDirROI := path.Join(root, "roi_img")
+	cleanDir(imgDirROI)
+	labelDirROI := path.Join(root, "roi_txt")
+	cleanDir(labelDirROI)
 	files, err := os.ReadDir(imgDir)
-	checkError(err)
+	checkE(err)
 	for i, f := range files {
 		if i%freq != 0 {
 			continue
 		}
-		imgFile, err := os.Open(path.Join(imgDir, f.Name()))
-		checkError(err)
-		defer imgFile.Close()
-		imgData, err := png.DecodeConfig(imgFile)
-		imgW, imgH := imgData.Width, imgData.Height
-		checkError(err)
-		bytes, err := os.ReadFile(path.Join(labelDir, strings.Replace(f.Name(), ".png", ".txt", 1)))
-		checkError(err)
-		for j, l := range strings.Split(string(bytes), "\n") {
+		imgData, imgSize := loadImg(path.Join(imgDir, f.Name()))
+		bytesTXT, err := os.ReadFile(path.Join(labelDir, strings.Replace(f.Name(), ".png", ".txt", 1)))
+		checkE(err)
+		for j, l := range strings.Split(string(bytesTXT), "\n") {
 			if l == "" {
 				continue
 			}
 			info := strings.Split(l, " ")
 			// info[1]: float from 0(non-truncated) to 1(truncated)
-			truncated := str2float64(info[1])
+			truncated := str2f64(info[1])
 			// info[2]: 0->fully visible, 1->partial occluded, 2->largely occluded, 3=unknown
 			occluded := str2int(info[2])
-			locX, locY := str2float64(info[11]), str2float64(info[13])
+			loc := [2]float64{str2f64(info[11]), str2f64(info[13])}
 			// Filter with X range=[-8, 8], Y range=[0, 80]
-			if truncated != 0 || occluded != 0 || !contains(cls, info[0]) || math.Abs(locX) > 8 || locY < 0 || locY > 80 {
+			clsID, contained := getClassID(cls, info[0])
+			if truncated != 0 || occluded != 0 || !contained || math.Abs(loc[0]) > 8 || loc[1] < 0 || loc[1] > 80 {
 				continue
 			}
-			bbox := [4]float64{str2float64(info[4]), str2float64(info[5]), str2float64(info[6]), str2float64(info[7])}
-			// fmt.Println(bbox)
-			bw, bh := bbox[2]-bbox[0], bbox[3]-bbox[1]
+			bbox := Box{str2f64(info[4]), str2f64(info[5]), str2f64(info[6]), str2f64(info[7])}
+			bw, bh := bbox.Xmax-bbox.Xmin+1, bbox.Ymax-bbox.Ymin+1
+			// fmt.Println(bbox, bw, bh)
 			offsetX, offsetY := bw*0.25, bh*0.25
 			// fmt.Println(offsetX, offsetY)
-			rbox := [4]float64{bbox[0] - offsetX, bbox[2] + offsetX, bbox[1] - offsetY, bbox[3] + offsetY}
-			if rbox[0] < 0 {
-				rbox[0] = 0
-			}
-			if rbox[1] < 0 {
-				rbox[1] = 0
-			}
-			if rbox[2] >= float64(imgW) {
-				rbox[2] = float64(imgW) - 1
-			}
-			if rbox[3] >= float64(imgH) {
-				rbox[3] = float64(imgH) - 1
-			}
+			rbox := Box{bbox.Xmin - offsetX, bbox.Ymin - offsetY, bbox.Xmax + offsetX, bbox.Ymax + offsetY}
+			ruleBox(rbox, imgSize)
+			// fmt.Println(rbox)
 			// Calculate bbox relative to ROI
-			obox := [4]float64{bbox[0] - rbox[0], bbox[1] + rbox[1], bbox[2] - rbox[0], bbox[3] + rbox[1]}
-			rw, rh := rbox[2]-rbox[0]+1, rbox[3]-rbox[1]+1
+			obox := Box{bbox.Xmin - rbox.Xmin, bbox.Ymin - rbox.Ymin, bbox.Xmax - rbox.Xmin, bbox.Ymax - rbox.Ymin}
+			rw, rh := rbox.Xmax-rbox.Xmin+1, rbox.Ymax-rbox.Ymin+1
 			// fmt.Println(obox, rw, rh)
-			if obox[0] < 0 || obox[1] < 0 || obox[2] > rw || obox[3] > rh {
+			if obox.Xmin < 0 || obox.Ymin < 0 || obox.Xmax > rw || obox.Xmax > rh {
 				continue
 			}
 			// Write ROI image
-			roiImgPath := path.Join(roiImgDir, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".png", 1))
-			fmt.Println(roiImgPath)
-			// Write xml
+			imgPathROI := path.Join(imgDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".jpg", 1))
+			subImg := cropImg(imgData, image.Rect(int(rbox.Xmin), int(rbox.Ymin), int(rbox.Xmax), int(rbox.Ymax)))
+			saveImg(subImg, imgPathROI)
+			checkE(err)
 			// Write txt
+			labelPathROI := path.Join(labelDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".txt", 1))
+			saveTXT(labelPathROI, imgSize, clsID, rbox, loc, obox)
+			// debug netive box value
+			// Augment
 		}
 	}
 
 	return nil
 }
 
-func list(root string, cls []string) error {
+func runList(root string, cls []string) error {
 	/*Generate paths.txt file, which contains data paths with each
 	data path in one line, this file format is required by yolo-v3.
 
@@ -214,18 +360,18 @@ func list(root string, cls []string) error {
 
 	root, err := filepath.Abs(root)
 	log.Println("Target Directory:", root)
-	checkError(err)
+	checkE(err)
 	txt := path.Join(root, "paths.txt")
-	file, err := os.OpenFile(txt, os.O_RDWR|os.O_CREATE, 0755)
-	checkError(err)
+	file, err := os.OpenFile(txt, os.O_RDONLY|os.O_CREATE, 0755)
+	checkE(err)
 	defer file.Close()
 	for i, c := range cls {
 		log.Println(i, c)
 		imgDir := path.Join(root, c, "images")
 		_, err := os.Stat(imgDir)
-		checkError(err)
+		checkE(err)
 		files, err := os.ReadDir(imgDir)
-		checkError(err)
+		checkE(err)
 		for _, f := range files {
 			path := path.Join(imgDir, f.Name())
 			file.WriteString(path + "\n")
@@ -235,7 +381,7 @@ func list(root string, cls []string) error {
 	return nil
 }
 
-func genTxt(root string, cls []string) error {
+func genTXT(root string, cls []string) error {
 	/*Read *.xml lable files and generate *.txt files.
 
 	Args:
@@ -247,37 +393,37 @@ func genTxt(root string, cls []string) error {
 	*/
 
 	root, err := filepath.Abs(root)
-	checkError(err)
+	checkE(err)
 	for id, c := range cls {
 		xmlDir := path.Join(root, c, "annotations")
 		txtDir := path.Join(root, c, "labels")
 		xmls, err := os.ReadDir(xmlDir)
-		checkError(err)
+		checkE(err)
 		for _, x := range xmls {
 			xmlPath := path.Join(xmlDir, x.Name())
 			bytes, _ := os.ReadFile(xmlPath)
 			var data XMLData
 			_ = xml.Unmarshal([]byte(bytes), &data)
-			objXCtr := strconv.FormatFloat((data.Obj.Box.Xmin+data.Obj.Box.Xmax)/2/data.Roi.Size.W, 'g', -1, 64)
-			objYCtr := strconv.FormatFloat((data.Obj.Box.Ymin+data.Obj.Box.Ymax)/2/data.Roi.Size.H, 'g', -1, 64)
-			objW := strconv.FormatFloat((data.Obj.Box.Xmax-data.Obj.Box.Xmin+1)/data.Roi.Size.W, 'g', -1, 64)
-			objH := strconv.FormatFloat((data.Obj.Box.Ymax-data.Obj.Box.Ymin+1)/data.Roi.Size.H, 'g', -1, 64)
-			roiXCtr := strconv.FormatFloat((data.Roi.Box.Xmin+data.Roi.Box.Xmax)/2/data.Size.W, 'g', -1, 64)
-			roiYCtr := strconv.FormatFloat((data.Roi.Box.Ymin+data.Roi.Box.Ymax)/2/data.Size.H, 'g', -1, 64)
-			roiW := strconv.FormatFloat((data.Obj.Box.Xmax-data.Obj.Box.Xmin+1)/data.Size.W, 'g', -1, 64)
-			roiH := strconv.FormatFloat((data.Obj.Box.Ymax-data.Obj.Box.Ymin+1)/data.Size.H, 'g', -1, 64)
+			xCtrObj := (data.Obj.Box.Xmin + data.Obj.Box.Xmax) / 2 / data.Roi.Size.W
+			yCtrObj := (data.Obj.Box.Ymin + data.Obj.Box.Ymax) / 2 / data.Roi.Size.H
+			wObj := (data.Obj.Box.Xmax - data.Obj.Box.Xmin + 1) / data.Roi.Size.W
+			hObj := (data.Obj.Box.Ymax - data.Obj.Box.Ymin + 1) / data.Roi.Size.H
+			xCtrROI := (data.Roi.Box.Xmin + data.Roi.Box.Xmax) / 2 / data.Size.W
+			yCtrROI := (data.Roi.Box.Ymin + data.Roi.Box.Ymax) / 2 / data.Size.H
+			wROI := (data.Obj.Box.Xmax - data.Obj.Box.Xmin + 1) / data.Size.W
+			hROI := (data.Obj.Box.Ymax - data.Obj.Box.Ymin + 1) / data.Size.H
 			str := []string{
 				strconv.Itoa(id),
-				objXCtr, objYCtr, objW, objH,
+				f642Str(xCtrObj), f642Str(yCtrObj), f642Str(wObj), f642Str(hObj),
 				data.Obj.Loc.Y, data.Obj.Loc.X,
-				roiXCtr, roiYCtr, roiW, roiH,
+				f642Str(xCtrROI), f642Str(yCtrROI), f642Str(wROI), f642Str(hROI),
 			}
 			txtName := strings.Replace(x.Name(), ".xml", ".txt", 1)
 			txtPath := path.Join(txtDir, txtName)
-			buffer, err := os.OpenFile(txtPath, os.O_RDWR|os.O_CREATE, 0755)
-			checkError(err)
-			defer buffer.Close()
-			buffer.WriteString(strings.Join(str, " "))
+			file, err := os.OpenFile(txtPath, os.O_WRONLY|os.O_CREATE, 0755)
+			checkE(err)
+			defer file.Close()
+			file.WriteString(strings.Join(str, " "))
 		}
 	}
 
@@ -291,7 +437,7 @@ func main() {
 	gtCmd := flag.NewFlagSet("gt", flag.ExitOnError)
 	gtDir := gtCmd.String("dir", "", "Directory")
 	gtCls := gtCmd.String("cls", "", "Classes")
-	cropCmd := flag.NewFlagSet("gt", flag.ExitOnError)
+	cropCmd := flag.NewFlagSet("crop", flag.ExitOnError)
 	cropDir := cropCmd.String("dir", "", "Directory")
 	cropFreq := cropCmd.Int("freq", 1, "Frequence")
 	cropCls := cropCmd.String("cls", "", "Classes")
@@ -302,18 +448,18 @@ func main() {
 	case "list":
 		listCmd.Parse(os.Args[2:])
 		classes := strings.Split(*listCls, ",")
-		err := list(*listDir, classes)
-		checkError(err)
+		err := runList(*listDir, classes)
+		checkE(err)
 	case "gt":
 		gtCmd.Parse(os.Args[2:])
 		classes := strings.Split(*gtCls, ",")
-		err := genTxt(*gtDir, classes)
-		checkError(err)
+		err := genTXT(*gtDir, classes)
+		checkE(err)
 	case "crop":
 		cropCmd.Parse(os.Args[2:])
 		classes := strings.Split(*cropCls, ",")
-		err := crop(*cropDir, *cropFreq, classes)
-		checkError(err)
+		err := runCrop(*cropDir, *cropFreq, classes)
+		checkE(err)
 	default:
 		log.Println("Expected subcommands")
 		os.Exit(1)
