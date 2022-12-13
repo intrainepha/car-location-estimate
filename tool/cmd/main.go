@@ -2,9 +2,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"image"
 	"log"
-	"math"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
@@ -15,25 +16,6 @@ import (
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
 	tp "github.com/intrainepha/car-location-estimation/tool/src/types"
 )
-
-func getClassID(ss []string, str string) (int, bool) {
-	/*Check if a string exists in a slice of string
-
-	Args:
-		str(string): string data
-
-	Returns:
-		(bool): Check result
-	*/
-
-	for i, v := range ss {
-		if v == str {
-			return i, true
-		}
-	}
-
-	return -1, false
-}
 
 func runCrop(root string, freq int, cls []string) error {
 	/*Crop Region of interest (ROI) from image with label formated in kitti approch.
@@ -72,44 +54,74 @@ func runCrop(root string, freq int, cls []string) error {
 			if l == "" {
 				continue
 			}
-			info := strings.Split(l, " ")
-			// info[1]: float from 0(non-truncated) to 1(truncated)
-			truncated := op.Str2f64(info[1])
-			// info[2]: 0->fully visible, 1->partial occluded, 2->largely occluded, 3=unknown
-			occluded := op.Str2int(info[2])
-			loc := &tp.Location{X: op.Str2f64(info[11]), Y: op.Str2f64(info[13])}
-			// Filter with X range=[-8, 8], Y range=[0, 80]
-			clsID, contained := getClassID(cls, info[0])
-			if truncated != 0 || occluded != 0 || !contained || math.Abs(loc.X) > 8 || loc.Y < 0 || loc.Y > 80 {
+			kt := tp.NewKITTI(l)
+			clsID, err := kt.Check(cls)
+			if err != nil {
 				continue
 			}
-			bRct := &tp.Rect{
-				Xtl: op.Str2f64(info[4]), Ytl: op.Str2f64(info[5]),
-				Xbr: op.Str2f64(info[6]), Ybr: op.Str2f64(info[7]),
-			}
-			bb := tp.NewBox(bRct, &tp.Size{W: imgSize.W, H: imgSize.H})
+			bRct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
+			bb := tp.NewBox(bRct, imgSize)
 			offX, offY := bb.Sz.W*0.25, bb.Sz.H*0.25
-			rRct := &tp.Rect{
-				Xtl: bb.Rct.Xtl - offX, Ytl: bb.Rct.Ytl - offY,
-				Xbr: bb.Rct.Xbr + offX, Ybr: bb.Rct.Ybr + offY,
-			}
-			rb := tp.NewBox(rRct, &tp.Size{W: imgSize.W, H: imgSize.H})
+			rRct := tp.NewRect(
+				bb.Rct.Xtl-offX, bb.Rct.Ytl-offY,
+				bb.Rct.Xbr+offX, bb.Rct.Ybr+offY,
+			)
+			rb := tp.NewBox(rRct, imgSize)
 			// Calculate bbox relative to ROI
-			oRct := &tp.Rect{
-				Xtl: bb.Rct.Xtl - rb.Rct.Xtl, Ytl: bb.Rct.Ytl - rb.Rct.Ytl,
-				Xbr: bb.Rct.Xbr - rb.Rct.Xtl, Ybr: bb.Rct.Ybr - rb.Rct.Ytl,
-			}
-			ob := tp.NewBox(oRct, &tp.Size{W: rb.Sz.W, H: rb.Sz.H})
+			oRct := tp.NewRect(
+				bb.Rct.Xtl-rb.Rct.Xtl, bb.Rct.Ytl-rb.Rct.Ytl,
+				bb.Rct.Xbr-rb.Rct.Xtl, bb.Rct.Ybr-rb.Rct.Ytl,
+			)
+			ob := tp.NewBox(oRct, &rb.Sz)
 			// Write ROI image
-			imgPathROI := path.Join(imgDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".jpg", 1))
+			p := path.Join(imgDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".jpg", 1))
 			subImg := file.CropImg(
 				imgData, image.Rect(int(rb.Rct.Xtl), int(rb.Rct.Ytl), int(rb.Rct.Xbr), int(rb.Rct.Ybr)),
 			)
-			file.SaveImg(subImg, imgPathROI)
-			// Write txt
-			labelPathROI := path.Join(labelDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".txt", 1))
-			file.SaveTXT(clsID, labelPathROI, ob, loc, rb)
+			file.SaveImg(p, subImg)
+			// Write ROI label txt file
+			p = path.Join(labelDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".txt", 1))
+			file.SaveTXT(p, clsID, ob, &kt.Loc, rb)
 			// Augment
+			orient := [4][4]float64{
+				{0, 1, 0, 1},   // move up
+				{0, -1, 0, -1}, // move down
+				{-1, 0, -1, 0}, // move left
+				{1, 0, 1, 0},   // move right
+			}
+			for k, m := range orient {
+				rd := (400 + float64(rand.Intn(500))) / 1000 //random number in [0.4, 0.9]
+				fmt.Println(i, m, rd)
+				step := [4]float64{
+					m[0] * offX * rd, m[1] * offY * rd,
+					m[2] * offX * rd, m[3] * offY * rd,
+				}
+				bRct = tp.NewRect(
+					bb.Rct.Xtl+step[0],
+					bb.Rct.Ytl+step[1],
+					bb.Rct.Xbr+step[2],
+					bb.Rct.Ybr+step[3],
+				)
+				bb = tp.NewBox(bRct, tp.NewSize(imgSize.W, imgSize.H))
+				rRct = tp.NewRect(
+					bb.Rct.Xtl-offX, bb.Rct.Ytl-offY,
+					bb.Rct.Xbr+offX, bb.Rct.Ybr+offY,
+				)
+				rb = tp.NewBox(rRct, imgSize)
+				oRct = tp.NewRect(
+					bb.Rct.Xtl-rb.Rct.Xtl, bb.Rct.Ytl-rb.Rct.Ytl,
+					bb.Rct.Xbr-rb.Rct.Xtl, bb.Rct.Ybr-rb.Rct.Ytl,
+				)
+				ob = tp.NewBox(oRct, &rb.Sz)
+				p = path.Join(imgDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1))
+				subImg = file.CropImg(
+					imgData, image.Rect(int(rb.Rct.Xtl), int(rb.Rct.Ytl), int(rb.Rct.Xbr), int(rb.Rct.Ybr)),
+				)
+				file.SaveImg(p, subImg)
+				// Write ROI label txt file
+				p = path.Join(labelDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+".txt", 1))
+				file.SaveTXT(p, clsID, ob, &kt.Loc, rb)
+			}
 		}
 	}
 

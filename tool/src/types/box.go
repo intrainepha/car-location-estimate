@@ -26,17 +26,47 @@ type Box struct {
 	Scl   ScaleBox
 }
 
+func NewSize(w float64, h float64) *Size {
+	/*Size init function
+
+	Args:
+		w(float64): Width
+		h(float64): Height
+
+	Returns:
+		(*Size): Pointer to a Size object
+	*/
+
+	return &Size{W: w, H: h}
+}
+
+func NewRect(xmin float64, ymin float64, xmax float64, ymax float64) *Rect {
+	/*Rect init function
+
+	Args:
+		xmin(float64): x value of top-left point
+		ymin(float64): y value of top-left point
+		xmax(float64): x value of bottom-right point
+		ymax(float64): y value of bottom-right point
+
+	Returns:
+		(*Rect): Pointer to a Rect object
+	*/
+
+	return &Rect{Xtl: xmin, Ytl: ymin, Xbr: xmax, Ybr: ymax}
+}
+
 func NewBox(r *Rect, s *Size) *Box {
 	/*Box init function, takes Rect in, then
 	calculate box size and scaled box:
 	[x_central, y_cenral, width, height]
 
 	Args:
-		r(Rect): Rectangle represent a bounding box
-		s(Sect): Image width and height
+		r(*Rect): Rectangle represent a bounding box
+		s(*Sect): Image width and height
 
 	Returns:
-		*Box: Point to a Box object
+		(*Box): Pointer to a Box object
 	*/
 
 	box := Box{ImgSz: *s, Rct: *r}

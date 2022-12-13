@@ -29,19 +29,19 @@ func LoadImg(path string) (image.Image, *tp.Size) {
 	op.CheckE(err)
 	imgInfo, _, err := image.DecodeConfig(bytes.NewReader(imgBytes))
 	op.CheckE(err)
-	size := tp.Size{W: float64(imgInfo.Width), H: float64(imgInfo.Height)}
+	size := tp.NewSize(float64(imgInfo.Width), float64(imgInfo.Height))
 	data, _, err := image.Decode(bytes.NewReader(imgBytes))
 	op.CheckE(err)
 
-	return data, &size
+	return data, size
 }
 
-func SaveImg(img image.Image, path string) {
+func SaveImg(path string, img image.Image) {
 	/*Save image in format=[png, jpg, gif]
 
 	Args:
-		img(image.Image): Readed image data
 		path(image.Image): save path
+		img(image.Image): Readed image data
 
 	Returns:
 		None

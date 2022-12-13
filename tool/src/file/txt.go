@@ -9,12 +9,12 @@ import (
 	tp "github.com/intrainepha/car-location-estimation/tool/src/types"
 )
 
-func SaveTXT(id int, path string, ob *tp.Box, loc *tp.Location, b *tp.Box) {
+func SaveTXT(path string, id int, ob *tp.Box, loc *tp.Location, b *tp.Box) {
 	/*Calculate data and write to *.txt files.
 
 	Args:
-		path(string): TXT file path
 		cls([]string): classes you choose to generate
+		path(string): TXT file path
 
 	Returns:
 		None
