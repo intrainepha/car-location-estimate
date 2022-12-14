@@ -67,14 +67,14 @@ func SaveImg(path string, img image.Image) {
 }
 
 func CropImg(img image.Image, rect image.Rectangle) image.Image {
-	/*Save image in format=[png, jpg, gif]
+	/*Crop Image
 
 	Args:
 		img(image.Image): Readed image data
-		path(image.Image): save path
+		rect(image.Image): REctangle=[Xtl, Ytl, Xbr, Ybr]
 
 	Returns:
-		None
+		(image.Image)
 	*/
 
 	var res image.Image

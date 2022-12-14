@@ -8,6 +8,15 @@ import (
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
 )
 
+type Offset struct {
+	X float64
+	Y float64
+}
+
+func NewOffset(x, y float64) *Offset {
+	return &Offset{X: x, Y: y}
+}
+
 type KITTI struct {
 	Cls  string
 	Trct float64
@@ -42,37 +51,6 @@ func NewKITTI(l string) *KITTI {
 	}
 }
 
-func (k *KITTI) Check(cls []string) (int, error) {
-	/*Kitti init function
-
-	Args:
-		l(string): Line data from kitti label(*txt)
-
-	Returns:
-		(*KITTI): Pointer to KITTI object
-	*/
-
-	// Filter classes those not slected by user
-	id, flag := k.getID(cls, k.Cls)
-	if !flag {
-		return -1, fmt.Errorf("class %s is not selected", k.Cls)
-	}
-	// info[1]: float from 0(non-truncated) to 1(truncated)
-	if k.Trct != 0 {
-		return -1, fmt.Errorf("sample is truncated")
-	}
-	// info[2]: 0->fully visible, 1->partial occluded, 2->largely occluded, 3=unknown
-	if k.Ocld != 0 {
-		return -1, fmt.Errorf("sample is occluded")
-	}
-	// x_range=[-8, 8], y_range=[0, 80], mutable
-	if math.Abs(k.Loc.X) > 8 || k.Loc.Y < 0 || k.Loc.Y > 80 {
-		return -1, fmt.Errorf("sample location is out of range")
-	}
-
-	return id, nil
-}
-
 func (k *KITTI) getID(ss []string, s string) (int, bool) {
 	/*Check if a string exists in a slice of string
 
@@ -90,4 +68,60 @@ func (k *KITTI) getID(ss []string, s string) (int, bool) {
 	}
 
 	return -1, false
+}
+
+func (k *KITTI) Check(cls []string) (int, error) {
+	/*Kitti init function
+
+	Args:
+		l(string): Line data from kitti label(*txt)
+
+	Returns:
+		(*KITTI): Pointer to KITTI object
+	*/
+
+	id, flag := k.getID(cls, k.Cls)
+	if !flag {
+		return -1, fmt.Errorf("class %s is not selected", k.Cls)
+	}
+	if k.Trct != 0 {
+		return -1, fmt.Errorf("sample is truncated")
+	}
+	if k.Ocld != 0 {
+		return -1, fmt.Errorf("sample is occluded")
+	}
+	if math.Abs(k.Loc.X) > 8 || k.Loc.Y < 0 || k.Loc.Y > 80 {
+		return -1, fmt.Errorf("sample location is out of range")
+	}
+
+	return id, nil
+}
+
+func (k *KITTI) MakeROI(imSz *Size, r *Rect) (*Box, *Box, *Box, *Offset) {
+	/*Make ROI Box
+
+	Args:
+		imSz(*Size): Image width and height
+		r(*Rect): Rectangle
+
+	Returns:
+		ob(*Box): Original Box relative to origin image
+		rb(*Box): ROI Box relative to origin image
+		b(*Box): Object Box relative to ROI
+	*/
+
+	ob := NewBox(r, imSz)
+	off := NewOffset(ob.Sz.W*0.25, ob.Sz.H*0.25)
+	rRct := NewRect(
+		ob.Rct.Xtl-off.X, ob.Rct.Ytl-off.Y,
+		ob.Rct.Xbr+off.X, ob.Rct.Ybr+off.Y,
+	)
+	rb := NewBox(rRct, imSz)
+	oRct := NewRect(
+		ob.Rct.Xtl-rb.Rct.Xtl, ob.Rct.Ytl-rb.Rct.Ytl,
+		ob.Rct.Xbr-rb.Rct.Xtl, ob.Rct.Ybr-rb.Rct.Ytl,
+	)
+	b := NewBox(oRct, &rb.Sz)
+
+	return ob, rb, b, off
 }

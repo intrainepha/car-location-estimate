@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"image"
 	"log"
 	"math/rand"
@@ -11,6 +10,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	pb "github.com/schollz/progressbar/v3"
 
 	file "github.com/intrainepha/car-location-estimation/tool/src/file"
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
@@ -35,20 +36,22 @@ func runCrop(root string, freq int, cls []string) error {
 
 	root, err := filepath.Abs(root)
 	op.CheckE(err)
-	imgDir := path.Join(root, "images")
-	labelDir := path.Join(root, "labels")
-	imgDirROI := path.Join(root, "roi_img")
-	op.CleanDir(imgDirROI)
-	labelDirROI := path.Join(root, "roi_txt")
-	op.CleanDir(labelDirROI)
-	files, err := os.ReadDir(imgDir)
+	imDir := path.Join(root, "images")
+	lbDir := path.Join(root, "labels")
+	imDirROI := path.Join(root, "roi_img")
+	op.CleanDir(imDirROI)
+	lbDirROI := path.Join(root, "roi_label")
+	op.CleanDir(lbDirROI)
+	files, err := os.ReadDir(imDir)
 	op.CheckE(err)
+	bar := pb.Default(int64(len(files)))
 	for i, f := range files {
+		bar.Add(1)
 		if i%freq != 0 {
 			continue
 		}
-		imgData, imgSize := file.LoadImg(path.Join(imgDir, f.Name()))
-		bytesTXT, err := os.ReadFile(path.Join(labelDir, strings.Replace(f.Name(), ".png", ".txt", 1)))
+		im, imSz := file.LoadImg(path.Join(imDir, f.Name()))
+		bytesTXT, err := os.ReadFile(path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1)))
 		op.CheckE(err)
 		for j, l := range strings.Split(string(bytesTXT), "\n") {
 			if l == "" {
@@ -59,29 +62,15 @@ func runCrop(root string, freq int, cls []string) error {
 			if err != nil {
 				continue
 			}
-			bRct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
-			bb := tp.NewBox(bRct, imgSize)
-			offX, offY := bb.Sz.W*0.25, bb.Sz.H*0.25
-			rRct := tp.NewRect(
-				bb.Rct.Xtl-offX, bb.Rct.Ytl-offY,
-				bb.Rct.Xbr+offX, bb.Rct.Ybr+offY,
+			rct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
+			ob, rb, b, offset := kt.MakeROI(imSz, rct)
+			imSub := file.CropImg(
+				im, image.Rect(int(rb.Rct.Xtl), int(rb.Rct.Ytl), int(rb.Rct.Xbr), int(rb.Rct.Ybr)),
 			)
-			rb := tp.NewBox(rRct, imgSize)
-			// Calculate bbox relative to ROI
-			oRct := tp.NewRect(
-				bb.Rct.Xtl-rb.Rct.Xtl, bb.Rct.Ytl-rb.Rct.Ytl,
-				bb.Rct.Xbr-rb.Rct.Xtl, bb.Rct.Ybr-rb.Rct.Ytl,
-			)
-			ob := tp.NewBox(oRct, &rb.Sz)
-			// Write ROI image
-			p := path.Join(imgDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".jpg", 1))
-			subImg := file.CropImg(
-				imgData, image.Rect(int(rb.Rct.Xtl), int(rb.Rct.Ytl), int(rb.Rct.Xbr), int(rb.Rct.Ybr)),
-			)
-			file.SaveImg(p, subImg)
-			// Write ROI label txt file
-			p = path.Join(labelDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".txt", 1))
-			file.SaveTXT(p, clsID, ob, &kt.Loc, rb)
+			p := path.Join(imDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".jpg", 1))
+			file.SaveImg(p, imSub)
+			p = path.Join(lbDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".txt", 1))
+			file.SaveTXT(p, clsID, b, &kt.Loc, rb)
 			// Augment
 			orient := [4][4]float64{
 				{0, 1, 0, 1},   // move up
@@ -91,36 +80,24 @@ func runCrop(root string, freq int, cls []string) error {
 			}
 			for k, m := range orient {
 				rd := (400 + float64(rand.Intn(500))) / 1000 //random number in [0.4, 0.9]
-				fmt.Println(i, m, rd)
 				step := [4]float64{
-					m[0] * offX * rd, m[1] * offY * rd,
-					m[2] * offX * rd, m[3] * offY * rd,
+					m[0] * offset.X * rd, m[1] * offset.Y * rd,
+					m[2] * offset.X * rd, m[3] * offset.Y * rd,
 				}
-				bRct = tp.NewRect(
-					bb.Rct.Xtl+step[0],
-					bb.Rct.Ytl+step[1],
-					bb.Rct.Xbr+step[2],
-					bb.Rct.Ybr+step[3],
+				rct = tp.NewRect(
+					ob.Rct.Xtl+step[0],
+					ob.Rct.Ytl+step[1],
+					ob.Rct.Xbr+step[2],
+					ob.Rct.Ybr+step[3],
 				)
-				bb = tp.NewBox(bRct, tp.NewSize(imgSize.W, imgSize.H))
-				rRct = tp.NewRect(
-					bb.Rct.Xtl-offX, bb.Rct.Ytl-offY,
-					bb.Rct.Xbr+offX, bb.Rct.Ybr+offY,
+				_, rb, b, _ := kt.MakeROI(imSz, rct)
+				imSub = file.CropImg(
+					im, image.Rect(int(rb.Rct.Xtl), int(rb.Rct.Ytl), int(rb.Rct.Xbr), int(rb.Rct.Ybr)),
 				)
-				rb = tp.NewBox(rRct, imgSize)
-				oRct = tp.NewRect(
-					bb.Rct.Xtl-rb.Rct.Xtl, bb.Rct.Ytl-rb.Rct.Ytl,
-					bb.Rct.Xbr-rb.Rct.Xtl, bb.Rct.Ybr-rb.Rct.Ytl,
-				)
-				ob = tp.NewBox(oRct, &rb.Sz)
-				p = path.Join(imgDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1))
-				subImg = file.CropImg(
-					imgData, image.Rect(int(rb.Rct.Xtl), int(rb.Rct.Ytl), int(rb.Rct.Xbr), int(rb.Rct.Ybr)),
-				)
-				file.SaveImg(p, subImg)
-				// Write ROI label txt file
-				p = path.Join(labelDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+".txt", 1))
-				file.SaveTXT(p, clsID, ob, &kt.Loc, rb)
+				p = path.Join(imDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1))
+				file.SaveImg(p, imSub)
+				p = path.Join(lbDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+".txt", 1))
+				file.SaveTXT(p, clsID, b, &kt.Loc, rb)
 			}
 		}
 	}
