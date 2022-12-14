@@ -1,9 +1,4 @@
-package types
-
-type Size struct {
-	W float64
-	H float64
-}
+package tps
 
 type Rect struct {
 	Xtl float64

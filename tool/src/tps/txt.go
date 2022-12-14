@@ -1,4 +1,4 @@
-package file
+package tps
 
 import (
 	"os"
@@ -6,10 +6,9 @@ import (
 	"strings"
 
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
-	tp "github.com/intrainepha/car-location-estimation/tool/src/types"
 )
 
-func SaveTXT(path string, id int, ob *tp.Box, loc *tp.Location, b *tp.Box) {
+func SaveTXT(path string, id int, ob *Box, loc *Location, b *Box) {
 	/*Calculate data and write to *.txt files.
 
 	Args:

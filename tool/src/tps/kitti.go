@@ -1,4 +1,4 @@
-package types
+package tps
 
 import (
 	"fmt"
@@ -8,13 +8,14 @@ import (
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
 )
 
-type Offset struct {
+type Location struct {
 	X float64
 	Y float64
 }
 
-func NewOffset(x, y float64) *Offset {
-	return &Offset{X: x, Y: y}
+type Offset struct {
+	X float64
+	Y float64
 }
 
 type KITTI struct {
@@ -23,6 +24,24 @@ type KITTI struct {
 	Ocld int
 	Rct  Rect
 	Loc  Location
+}
+
+func NewLoc(x float64, y float64) *Location {
+	/*Location init function
+
+	Args:
+		x(float64): x-distance in real world
+		y(float64): y-distance in real world
+
+	Returns:
+		(*Location): Pointer to a Location object
+	*/
+
+	return &Location{X: x, Y: y}
+}
+
+func NewOffset(x, y float64) *Offset {
+	return &Offset{X: x, Y: y}
 }
 
 func NewKITTI(l string) *KITTI {

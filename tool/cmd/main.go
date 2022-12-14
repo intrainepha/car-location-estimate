@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"image"
 	"log"
 	"math/rand"
 	"os"
@@ -13,9 +12,8 @@ import (
 
 	pb "github.com/schollz/progressbar/v3"
 
-	file "github.com/intrainepha/car-location-estimation/tool/src/file"
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
-	tp "github.com/intrainepha/car-location-estimation/tool/src/types"
+	tp "github.com/intrainepha/car-location-estimation/tool/src/tps"
 )
 
 func runCrop(root string, freq int, cls []string) error {
@@ -44,33 +42,30 @@ func runCrop(root string, freq int, cls []string) error {
 	op.CleanDir(lbDirROI)
 	files, err := os.ReadDir(imDir)
 	op.CheckE(err)
-	bar := pb.Default(int64(len(files)))
+	bar := pb.Default(int64(len(files)), "Processing files:")
 	for i, f := range files {
 		bar.Add(1)
 		if i%freq != 0 {
 			continue
 		}
-		im, imSz := file.LoadImg(path.Join(imDir, f.Name()))
+		im := tp.NewIm()
+		err := im.Load(path.Join(imDir, f.Name()))
+		op.CheckE(err)
 		bytesTXT, err := os.ReadFile(path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1)))
 		op.CheckE(err)
-		for j, l := range strings.Split(string(bytesTXT), "\n") {
-			if l == "" {
-				continue
-			}
+		for j, l := range strings.Split(strings.Trim(string(bytesTXT), "\n"), "\n") {
 			kt := tp.NewKITTI(l)
 			clsID, err := kt.Check(cls)
 			if err != nil {
 				continue
 			}
 			rct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
-			ob, rb, b, offset := kt.MakeROI(imSz, rct)
-			imSub := file.CropImg(
-				im, image.Rect(int(rb.Rct.Xtl), int(rb.Rct.Ytl), int(rb.Rct.Xbr), int(rb.Rct.Ybr)),
-			)
+			ob, rb, b, offset := kt.MakeROI(&im.Sz, rct)
+			imSub := im.Crop(&rb.Rct)
 			p := path.Join(imDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".jpg", 1))
-			file.SaveImg(p, imSub)
+			imSub.Save(p)
 			p = path.Join(lbDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".txt", 1))
-			file.SaveTXT(p, clsID, b, &kt.Loc, rb)
+			tp.SaveTXT(p, clsID, b, &kt.Loc, rb)
 			// Augment
 			orient := [4][4]float64{
 				{0, 1, 0, 1},   // move up
@@ -84,20 +79,18 @@ func runCrop(root string, freq int, cls []string) error {
 					m[0] * offset.X * rd, m[1] * offset.Y * rd,
 					m[2] * offset.X * rd, m[3] * offset.Y * rd,
 				}
-				rct = tp.NewRect(
+				rct := tp.NewRect(
 					ob.Rct.Xtl+step[0],
 					ob.Rct.Ytl+step[1],
 					ob.Rct.Xbr+step[2],
 					ob.Rct.Ybr+step[3],
 				)
-				_, rb, b, _ := kt.MakeROI(imSz, rct)
-				imSub = file.CropImg(
-					im, image.Rect(int(rb.Rct.Xtl), int(rb.Rct.Ytl), int(rb.Rct.Xbr), int(rb.Rct.Ybr)),
-				)
-				p = path.Join(imDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1))
-				file.SaveImg(p, imSub)
+				_, rb, b, _ := kt.MakeROI(&im.Sz, rct)
+				imSub = im.Crop(&rb.Rct)
+				p := path.Join(imDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1))
+				imSub.Save(p)
 				p = path.Join(lbDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+".txt", 1))
-				file.SaveTXT(p, clsID, b, &kt.Loc, rb)
+				tp.SaveTXT(p, clsID, b, &kt.Loc, rb)
 			}
 		}
 	}
