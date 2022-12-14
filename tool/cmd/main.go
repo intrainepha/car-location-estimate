@@ -51,18 +51,20 @@ func runCrop(root string, freq int, cls []string) error {
 		im := tp.NewIm()
 		err := im.Load(path.Join(imDir, f.Name()))
 		op.CheckE(err)
-		bytesTXT, err := os.ReadFile(path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1)))
+		p := path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1))
+		txt, err := tp.NewTXT(p)
 		op.CheckE(err)
-		for j, l := range strings.Split(strings.Trim(string(bytesTXT), "\n"), "\n") {
+		op.CheckE(txt.Load())
+		for j, l := range txt.ReadLines() {
 			kt := tp.NewKITTI(l)
 			clsID, err := kt.Check(cls)
 			if err != nil {
 				continue
 			}
 			rct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
-			ob, rb, b, offset := kt.MakeROI(&im.Sz, rct)
+			ob, rb, b, offset := kt.MakeROI(&im.Sz, rct, 0.25)
 			imSub := im.Crop(&rb.Rct)
-			p := path.Join(imDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".jpg", 1))
+			p = path.Join(imDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".jpg", 1))
 			imSub.Save(p)
 			p = path.Join(lbDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".txt", 1))
 			tp.SaveTXT(p, clsID, b, &kt.Loc, rb)
@@ -85,11 +87,17 @@ func runCrop(root string, freq int, cls []string) error {
 					ob.Rct.Xbr+step[2],
 					ob.Rct.Ybr+step[3],
 				)
-				_, rb, b, _ := kt.MakeROI(&im.Sz, rct)
+				_, rb, b, _ := kt.MakeROI(&im.Sz, rct, 0.25)
 				imSub = im.Crop(&rb.Rct)
-				p := path.Join(imDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1))
+				p := path.Join(
+					imDirROI,
+					strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1),
+				)
 				imSub.Save(p)
-				p = path.Join(lbDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+".txt", 1))
+				p = path.Join(
+					lbDirROI,
+					strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+".txt", 1),
+				)
 				tp.SaveTXT(p, clsID, b, &kt.Loc, rb)
 			}
 		}

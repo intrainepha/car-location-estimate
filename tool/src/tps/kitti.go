@@ -116,12 +116,13 @@ func (k *KITTI) Check(cls []string) (int, error) {
 	return id, nil
 }
 
-func (k *KITTI) MakeROI(imSz *Size, r *Rect) (*Box, *Box, *Box, *Offset) {
+func (k *KITTI) MakeROI(imSz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offset) {
 	/*Make ROI Box
 
 	Args:
 		imSz(*Size): Image width and height
 		r(*Rect): Rectangle
+		s(float64): Scale number
 
 	Returns:
 		ob(*Box): Original Box relative to origin image
@@ -130,7 +131,7 @@ func (k *KITTI) MakeROI(imSz *Size, r *Rect) (*Box, *Box, *Box, *Offset) {
 	*/
 
 	ob := NewBox(r, imSz)
-	off := NewOffset(ob.Sz.W*0.25, ob.Sz.H*0.25)
+	off := NewOffset(ob.Sz.W*s, ob.Sz.H*s)
 	rRct := NewRect(
 		ob.Rct.Xtl-off.X, ob.Rct.Ytl-off.Y,
 		ob.Rct.Xbr+off.X, ob.Rct.Ybr+off.Y,
