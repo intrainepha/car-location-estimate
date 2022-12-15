@@ -31,11 +31,11 @@ func NewScl(x float64, y float64, w float64, h float64) *ScaleBox {
 }
 
 type Box struct {
-	ID    int
-	ImgSz Size
-	Sz    Size
-	Rct   Rect
-	Scl   ScaleBox
+	ID   int
+	ImSz Size
+	Sz   Size
+	Rct  Rect
+	Scl  ScaleBox
 }
 
 func NewSize(w float64, h float64) *Size {
@@ -82,7 +82,7 @@ func NewBox(id int, r *Rect, s *Size) *Box {
 		(*Box): Pointer to a Box object
 	*/
 
-	box := Box{ID: id, ImgSz: *s, Rct: *r}
+	box := Box{ID: id, ImSz: *s, Rct: *r}
 	// box.Trim()
 	// box.Scale()
 
@@ -104,11 +104,11 @@ func (b *Box) Trim() *Box {
 	if b.Rct.Ytl < 0 {
 		b.Rct.Ytl = 0
 	}
-	if b.Rct.Xbr >= float64(b.ImgSz.W) {
-		b.Rct.Xbr = float64(b.ImgSz.W) - 1
+	if b.Rct.Xbr >= float64(b.ImSz.W) {
+		b.Rct.Xbr = float64(b.ImSz.W) - 1
 	}
-	if b.Rct.Ybr >= float64(b.ImgSz.H) {
-		b.Rct.Ybr = float64(b.ImgSz.H) - 1
+	if b.Rct.Ybr >= float64(b.ImSz.H) {
+		b.Rct.Ybr = float64(b.ImSz.H) - 1
 	}
 
 	return b
@@ -126,10 +126,10 @@ func (b *Box) Scale() *Box {
 
 	b.Sz.W = b.Rct.Xbr - b.Rct.Xtl + 1
 	b.Sz.H = b.Rct.Ybr - b.Rct.Ytl + 1
-	b.Scl.Xc = (b.Rct.Xtl + b.Rct.Xbr) / 2 / b.ImgSz.W
-	b.Scl.Yc = (b.Rct.Ytl + b.Rct.Ybr) / 2 / b.ImgSz.H
-	b.Scl.W = b.Sz.W / b.ImgSz.W
-	b.Scl.H = b.Sz.H / b.ImgSz.H
+	b.Scl.Xc = (b.Rct.Xtl + b.Rct.Xbr) / 2 / b.ImSz.W
+	b.Scl.Yc = (b.Rct.Ytl + b.Rct.Ybr) / 2 / b.ImSz.H
+	b.Scl.W = b.Sz.W / b.ImSz.W
+	b.Scl.H = b.Sz.H / b.ImSz.H
 
 	return b
 }
@@ -144,10 +144,10 @@ func (b *Box) UnScale() *Box {
 		b(*Box): Box object after unscaled
 	*/
 
-	b.Sz.W = b.Scl.W * b.ImgSz.W
-	b.Sz.H = b.Scl.H * b.ImgSz.H
-	b.Rct.Xtl = (b.Scl.Xc*b.ImgSz.W*2 - b.Sz.W + 1) / 2
-	b.Rct.Ytl = (b.Scl.Yc*b.ImgSz.H*2 - b.Sz.H + 1) / 2
+	b.Sz.W = b.Scl.W * b.ImSz.W
+	b.Sz.H = b.Scl.H * b.ImSz.H
+	b.Rct.Xtl = (b.Scl.Xc*b.ImSz.W*2 - b.Sz.W + 1) / 2
+	b.Rct.Ytl = (b.Scl.Yc*b.ImSz.H*2 - b.Sz.H + 1) / 2
 	b.Rct.Xbr = b.Rct.Xtl + b.Sz.W
 	b.Rct.Ybr = b.Rct.Ytl + b.Sz.H
 

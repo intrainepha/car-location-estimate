@@ -8,20 +8,20 @@ import (
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
 )
 
-type TXT struct {
+type File struct {
 	Path    string
 	File    os.File
 	Content string
 }
 
-func NewTXT(p string) (*TXT, error) {
-	/*Open *.txt file, create a new one if it does not exist
+func NewFile(p string) (*File, error) {
+	/*Open file, create a new one if it does not exist
 
 	Args:
-		p(string): File path
+		p(string): file path
 
 	Returns:
-		(*TXT)
+		(*File)
 		(error)
 	*/
 
@@ -29,25 +29,25 @@ func NewTXT(p string) (*TXT, error) {
 	if !op.CheckDir(d) {
 		err := os.MkdirAll(d, 0755)
 		if err != nil {
-			return &TXT{}, err
+			return &File{}, err
 		}
 	}
 	f, err := os.OpenFile(p, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
-		return &TXT{}, err
+		return &File{}, err
 	}
 
-	return &TXT{Path: p, File: *f}, nil
+	return &File{Path: p, File: *f}, nil
 }
 
-func (t *TXT) Load() error {
-	/*Load *.txt file, create a new one if it does not exist
+func (t *File) Load() error {
+	/*Load file content, create a new one if it does not exist
 
 	Args:
-		p(string): File path
+		p(string): file path
 
 	Returns:
-		(*TXT)
+		(*File)
 		(error)
 	*/
 
@@ -60,20 +60,20 @@ func (t *TXT) Load() error {
 	return nil
 }
 
-func (t *TXT) ReadLines() []string {
-	/*Read lines from *.txt file.
+func (t *File) ReadLines() []string {
+	/*Read lines from *.File file.
 
 	Args:
 		None
 
 	Returns:
-		([]string): Line data from text file
+		([]string): line data from file
 	*/
 
 	return strings.Split(t.Content, "\n")
 }
 
-func (t *TXT) WriteLine(s string) error {
+func (t *File) WriteLine(s string) error {
 	/*Write line date to file buffer
 
 	Args:
@@ -98,7 +98,7 @@ func (t *TXT) WriteLine(s string) error {
 	return nil
 }
 
-func (t *TXT) Close() {
+func (t *File) Close() {
 	/*Close os.File buffer.
 
 	Args:

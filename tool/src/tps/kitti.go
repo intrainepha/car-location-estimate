@@ -115,7 +115,7 @@ func (k *KITTI) MakeROI(imSz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offs
 		rb(*Box): ROI Box relative to origin image
 		b(*Box): object Box relative to ROI
 	*/
-	// TODO: trim and scale
+
 	id := k.Cls.GetID(k.Name)
 	ob := NewBox(id, r, imSz)
 	off := NewOffset(ob.Sz.W*s, ob.Sz.H*s)
@@ -123,12 +123,12 @@ func (k *KITTI) MakeROI(imSz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offs
 		ob.Rct.Xtl-off.X, ob.Rct.Ytl-off.Y,
 		ob.Rct.Xbr+off.X, ob.Rct.Ybr+off.Y,
 	)
-	rb := NewBox(id, rRct, imSz)
+	rb := NewBox(id, rRct, imSz).Trim()
 	oRct := NewRect(
 		ob.Rct.Xtl-rb.Rct.Xtl, ob.Rct.Ytl-rb.Rct.Ytl,
 		ob.Rct.Xbr-rb.Rct.Xtl, ob.Rct.Ybr-rb.Rct.Ytl,
 	)
-	b := NewBox(id, oRct, &rb.Sz)
+	b := NewBox(id, oRct, &rb.Sz).Trim().Scale()
 
 	return ob, rb, b, off
 }

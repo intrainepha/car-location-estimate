@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	pb "github.com/schollz/progressbar/v3"
-
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
 	tp "github.com/intrainepha/car-location-estimation/tool/src/tps"
 )
@@ -42,7 +40,7 @@ func formROILabel(id int, b *tp.Box, l *tp.Location, rb *tp.Box) string {
 	return strings.Join(ss, " ")
 }
 
-func runCrop(root string, freq int) {
+func runCrop(root string, freq int, clsPath string) {
 	/*Crop Region of interest (ROI) from image with label formated in kitti approch.
 			root/
 				├──images
@@ -60,8 +58,7 @@ func runCrop(root string, freq int) {
 
 	root, err := filepath.Abs(root)
 	op.CheckE(err)
-	clsPath := path.Join(root, "cls.txt")
-	clsF, err := tp.NewTXT(clsPath)
+	clsF, err := tp.NewFile(clsPath)
 	op.CheckE(err)
 	cls := clsF.ReadLines()
 	ds := path.Base(root)
@@ -72,9 +69,7 @@ func runCrop(root string, freq int) {
 	op.CleanDir(imDirROI, lbDirROI)
 	files, err := os.ReadDir(imDir)
 	op.CheckE(err)
-	bar := pb.Default(int64(len(files)), "Processing files:")
 	for i, f := range files {
-		bar.Add(1)
 		if i%freq != 0 {
 			continue
 		}
@@ -82,11 +77,11 @@ func runCrop(root string, freq int) {
 		err := im.Load(path.Join(imDir, f.Name()))
 		op.CheckE(err)
 		p := path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1))
-		oTXT, err := tp.NewTXT(p)
+		oFile, err := tp.NewFile(p)
 		op.CheckE(err)
-		defer oTXT.Close()
-		op.CheckE(oTXT.Load())
-		for j, l := range oTXT.ReadLines() {
+		defer oFile.Close()
+		op.CheckE(oFile.Load())
+		for j, l := range oFile.ReadLines() {
 			kt := tp.NewKITTI(cls, l)
 			id := kt.Cls.GetID(kt.Name)
 			if !kt.Check(cls) {
@@ -95,13 +90,14 @@ func runCrop(root string, freq int) {
 			rct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
 			ob, rb, b, offset := kt.MakeROI(&im.Sz, rct, 0.25)
 			imSub := im.Crop(&rb.Rct)
+			//TODO: loading image by its suffix
 			p = path.Join(imDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".jpg", 1))
 			imSub.Save(p)
 			p = path.Join(lbDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".txt", 1))
-			tTXT, err := tp.NewTXT(p)
+			tFile, err := tp.NewFile(p)
 			op.CheckE(err)
-			defer tTXT.Close()
-			err = tTXT.WriteLine(formROILabel(id, b, &kt.Loc, rb))
+			defer tFile.Close()
+			err = tFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
 			op.CheckE(err)
 			orient := [4][4]float64{
 				{0, 1, 0, 1},   // move up
@@ -130,51 +126,50 @@ func runCrop(root string, freq int) {
 					lbDirROI,
 					strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".txt", 1),
 				)
-				// tp.SaveTXT(p, clsID, b, &kt.Loc, rb)
-				atTXT, err := tp.NewTXT(p)
+				atFile, err := tp.NewFile(p)
 				op.CheckE(err)
-				defer atTXT.Close()
-				atTXT.WriteLine(formROILabel(id, b, &kt.Loc, rb))
+				defer atFile.Close()
+				atFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
 			}
 		}
 	}
 }
 
-// func visualize(root string) {
-// 	/*Draw bounding box of object to image
+func visualize(root string) {
+	/*Draw bounding box of object to image
 
-// 	Args:
-// 		root(string): Directory contains data files
+	Args:
+		root(string): Directory contains data files
 
-// 	Returns:
-// 		error
-// 	*/
+	Returns:
+		error
+	*/
 
-// 	root, err := filepath.Abs(root)
-// 	op.CheckE(err)
-// 	imDir := path.Join(root, "images")
-// 	lbDir := path.Join(root, "labels")
-// 	fs, err := os.ReadDir(lbDir)
-// 	op.CheckE(err)
-// 	bar := pb.Default(int64(len(fs)), "Visulization:")
-// 	for _, f := range fs {
-// 		bar.Add(1)
-// 		imPath := path.Join(imDir, strings.Replace(f.Name(), ".txt", ".jpg", 1))
-// 		im := tp.NewIm()
-// 		im.Load(imPath)
-// 		lbPath := path.Join(imDir, f.Name())
-// 		lb, err := tp.NewTXT(lbPath)
-// 		op.CheckE(err)
-// 		lbs := strings.Split(lb.Content, " ")
-// 		b := tp.NewBox(op.Str2int(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
-// 		b.ImgSz = im.Sz
-// 		b.Scl = *tp.NewScl(
-// 			op.Str2f64(lbs[1]), op.Str2f64(lbs[2]), op.Str2f64(lbs[3]), op.Str2f64(lbs[4]),
-// 		)
-// 		b.UnScale()
-// 	}
+	root, err := filepath.Abs(root)
+	op.CheckE(err)
+	imDir := path.Join(root, "images")
+	lbDir := path.Join(root, "labels")
+	fs, err := os.ReadDir(lbDir)
+	op.CheckE(err)
+	for _, f := range fs {
+		imPath := path.Join(imDir, strings.Replace(f.Name(), ".txt", ".jpg", 1))
+		im := tp.NewIm()
+		im.Load(imPath)
+		lbPath := path.Join(imDir, f.Name())
+		lb, err := tp.NewFile(lbPath)
+		op.CheckE(err)
+		lbs := strings.Split(lb.Content, " ")
+		b := tp.NewBox(op.Str2int(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
+		b.ImSz = im.Sz
+		b.Scl = *tp.NewScl(
+			op.Str2f64(lbs[1]), op.Str2f64(lbs[2]),
+			op.Str2f64(lbs[3]), op.Str2f64(lbs[4]),
+		)
+		b.UnScale()
 
-// }
+	}
+
+}
 
 func runList(root string, cls []string) {
 	/*Generate paths.txt file, which contains data paths with each
@@ -215,7 +210,6 @@ func runList(root string, cls []string) {
 			path := path.Join(imgDir, f.Name())
 			file.WriteString(path + "\n")
 		}
-
 	}
 }
 
@@ -227,6 +221,7 @@ func main() {
 	cropCmd := flag.NewFlagSet("crop", flag.ExitOnError)
 	cropDir := cropCmd.String("dir", "", "Directory")
 	cropFreq := cropCmd.Int("freq", 1, "Frequence")
+	cropCls := cropCmd.String("cls", "", "Classes file")
 
 	if len(os.Args) < 2 {
 		log.Fatal("Expected subcommands!")
@@ -239,7 +234,7 @@ func main() {
 		runList(*listDir, classes)
 	case "crop":
 		cropCmd.Parse(os.Args[2:])
-		runCrop(*cropDir, *cropFreq)
+		runCrop(*cropDir, *cropFreq, *cropCls)
 	default:
 		log.Println("Expected subcommands")
 		os.Exit(1)
