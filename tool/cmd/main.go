@@ -16,6 +16,32 @@ import (
 	tp "github.com/intrainepha/car-location-estimation/tool/src/tps"
 )
 
+func formROILabel(id int, b *tp.Box, l *tp.Location, rb *tp.Box) string {
+	/*Transform data into ROI formate:
+		| Class_ID | Bounding_box | Location | ROI Bounding_box |
+
+	Args:
+		id(int): Class ID
+		b(*tp.Box): Object box that relative to ROI image
+		l(*tp.Location): X-distence and Y-distance in the real world
+		rb(*tp.Box): ROI box that relative to origin image
+
+	Returns:
+		(string): Formed ROI label string
+	*/
+
+	ss := []string{
+		strconv.Itoa(id),
+		op.F642Str(b.Scl.Xc), op.F642Str(b.Scl.Yc),
+		op.F642Str(b.Scl.W), op.F642Str(b.Scl.H),
+		op.F642Str(l.Y), op.F642Str(l.X),
+		op.F642Str(rb.Scl.Xc), op.F642Str(rb.Scl.Yc),
+		op.F642Str(rb.Scl.W), op.F642Str(rb.Scl.H),
+	}
+
+	return strings.Join(ss, " ")
+}
+
 func runCrop(root string, freq int, cls []string) error {
 	/*Crop Region of interest (ROI) from image with label formated in kitti approch.
 			root/
@@ -37,9 +63,8 @@ func runCrop(root string, freq int, cls []string) error {
 	imDir := path.Join(root, "images")
 	lbDir := path.Join(root, "labels")
 	imDirROI := path.Join(root, "roi_img")
-	op.CleanDir(imDirROI)
 	lbDirROI := path.Join(root, "roi_label")
-	op.CleanDir(lbDirROI)
+	op.CleanDir(imDirROI, lbDirROI)
 	files, err := os.ReadDir(imDir)
 	op.CheckE(err)
 	bar := pb.Default(int64(len(files)), "Processing files:")
@@ -52,10 +77,11 @@ func runCrop(root string, freq int, cls []string) error {
 		err := im.Load(path.Join(imDir, f.Name()))
 		op.CheckE(err)
 		p := path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1))
-		txt, err := tp.NewTXT(p)
+		oTXT, err := tp.NewTXT(p)
 		op.CheckE(err)
-		op.CheckE(txt.Load())
-		for j, l := range txt.ReadLines() {
+		defer oTXT.Close()
+		op.CheckE(oTXT.Load())
+		for j, l := range oTXT.ReadLines() {
 			kt := tp.NewKITTI(l)
 			clsID, err := kt.Check(cls)
 			if err != nil {
@@ -67,7 +93,11 @@ func runCrop(root string, freq int, cls []string) error {
 			p = path.Join(imDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".jpg", 1))
 			imSub.Save(p)
 			p = path.Join(lbDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".txt", 1))
-			tp.SaveTXT(p, clsID, b, &kt.Loc, rb)
+			tTXT, err := tp.NewTXT(p)
+			op.CheckE(err)
+			defer tTXT.Close()
+			tTXT.WriteLine(formROILabel(clsID, b, &kt.Loc, rb))
+			// tp.SaveTXT(p, clsID, b, &kt.Loc, rb)
 			// Augment
 			orient := [4][4]float64{
 				{0, 1, 0, 1},   // move up
@@ -82,10 +112,8 @@ func runCrop(root string, freq int, cls []string) error {
 					m[2] * offset.X * rd, m[3] * offset.Y * rd,
 				}
 				rct := tp.NewRect(
-					ob.Rct.Xtl+step[0],
-					ob.Rct.Ytl+step[1],
-					ob.Rct.Xbr+step[2],
-					ob.Rct.Ybr+step[3],
+					ob.Rct.Xtl+step[0], ob.Rct.Ytl+step[1],
+					ob.Rct.Xbr+step[2], ob.Rct.Ybr+step[3],
 				)
 				_, rb, b, _ := kt.MakeROI(&im.Sz, rct, 0.25)
 				imSub = im.Crop(&rb.Rct)
@@ -96,9 +124,13 @@ func runCrop(root string, freq int, cls []string) error {
 				imSub.Save(p)
 				p = path.Join(
 					lbDirROI,
-					strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+".txt", 1),
+					strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".txt", 1),
 				)
-				tp.SaveTXT(p, clsID, b, &kt.Loc, rb)
+				// tp.SaveTXT(p, clsID, b, &kt.Loc, rb)
+				atTXT, err := tp.NewTXT(p)
+				op.CheckE(err)
+				defer atTXT.Close()
+				atTXT.WriteLine(formROILabel(clsID, b, &kt.Loc, rb))
 			}
 		}
 	}

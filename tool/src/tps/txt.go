@@ -73,7 +73,7 @@ func (t *TXT) ReadLines() []string {
 	return strings.Split(t.Content, "\n")
 }
 
-func (t *TXT) WriteLine(ss []string, sep string) {
+func (t *TXT) WriteLine(s string) {
 	/*Write line date to file buffer
 
 	Args:
@@ -83,27 +83,18 @@ func (t *TXT) WriteLine(ss []string, sep string) {
 		([]string): Line data from text file
 	*/
 
-	t.File.WriteString(strings.Join(ss, sep))
+	t.File.WriteString(s + "\n")
 }
 
-func (t *TXT) Save(p string) {
-	/*Calculate data and write to *.txt files.
+func (t *TXT) Close() {
+	/*Close os.File buffer.
 
 	Args:
-		cls([]string): classes you choose to generate
-		path(string): TXT file path
+		None
 
 	Returns:
 		None
 	*/
 
-	// str := []string{
-	// 	strconv.Itoa(id),
-	// 	op.F642Str(ob.Scl.Xc), op.F642Str(ob.Scl.Yc),
-	// 	op.F642Str(ob.Scl.W), op.F642Str(ob.Scl.H),
-	// 	op.F642Str(loc.Y), op.F642Str(loc.X),
-	// 	op.F642Str(b.Scl.Xc), op.F642Str(b.Scl.Yc),
-	// 	op.F642Str(b.Scl.W), op.F642Str(b.Scl.H),
-	// }
-	t.File.WriteString(strings.Join(str, " "))
+	t.File.Close()
 }
