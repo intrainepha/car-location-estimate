@@ -1,7 +1,6 @@
 package tps
 
 import (
-	"fmt"
 	"math"
 	"strings"
 
@@ -19,7 +18,8 @@ type Offset struct {
 }
 
 type KITTI struct {
-	Cls  string
+	Cls  Cls
+	Name string
 	Trct float64
 	Ocld int
 	Rct  Rect
@@ -34,7 +34,7 @@ func NewLoc(x float64, y float64) *Location {
 		y(float64): y-distance in real world
 
 	Returns:
-		(*Location): Pointer to a Location object
+		(*Location): pointer to a Location object
 	*/
 
 	return &Location{X: x, Y: y}
@@ -44,14 +44,14 @@ func NewOffset(x, y float64) *Offset {
 	return &Offset{X: x, Y: y}
 }
 
-func NewKITTI(l string) *KITTI {
+func NewKITTI(cls []string, l string) *KITTI {
 	/*Kitti init function
 
 	Args:
-		l(string): Line data from kitti label(*txt)
+		l(string): line data from kitti label(*txt)
 
 	Returns:
-		(*KITTI): Pointer to KITTI object
+		(*KITTI): pointer to KITTI object
 	*/
 
 	info := strings.Split(l, " ")
@@ -62,7 +62,8 @@ func NewKITTI(l string) *KITTI {
 
 	loc := *NewLoc(op.Str2f64(info[11]), op.Str2f64(info[13]))
 	return &KITTI{
-		Cls:  info[0],
+		Cls:  *NewCls(cls),
+		Name: info[0],
 		Trct: op.Str2f64(info[1]),
 		Ocld: op.Str2int(info[2]),
 		Rct:  rct,
@@ -70,78 +71,64 @@ func NewKITTI(l string) *KITTI {
 	}
 }
 
-func (k *KITTI) getID(ss []string, s string) (int, bool) {
-	/*Check if a string exists in a slice of string
-
-	Args:
-		str(string): string data
-
-	Returns:
-		(bool): Check result
-	*/
-
-	for i, v := range ss {
-		if v == s {
-			return i, true
-		}
-	}
-
-	return -1, false
-}
-
-func (k *KITTI) Check(cls []string) (int, error) {
+func (k *KITTI) Check(cls []string) bool {
 	/*Kitti init function
 
 	Args:
-		l(string): Line data from kitti label(*txt)
+		l(string): line data from kitti label(*txt)
 
 	Returns:
-		(*KITTI): Pointer to KITTI object
+		(*KITTI): pointer to KITTI object
 	*/
 
-	id, flag := k.getID(cls, k.Cls)
-	if !flag {
-		return -1, fmt.Errorf("class %s is not selected", k.Cls)
+	if k.Cls.GetID(k.Name) == -1 {
+		//Class is not selected
+		return false
 	}
 	if k.Trct != 0 {
-		return -1, fmt.Errorf("sample is truncated")
+		// return fmt.Errorf("sample is truncated")
+		return false
 	}
 	if k.Ocld != 0 {
-		return -1, fmt.Errorf("sample is occluded")
+		// return fmt.Errorf("sample is occluded")
+		return false
 	}
 	if math.Abs(k.Loc.X) > 8 || k.Loc.Y < 0 || k.Loc.Y > 80 {
-		return -1, fmt.Errorf("sample location is out of range")
+		// return fmt.Errorf("sample location is out of range")
+		return false
 	}
 
-	return id, nil
+	return true
 }
 
 func (k *KITTI) MakeROI(imSz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offset) {
 	/*Make ROI Box
 
 	Args:
-		imSz(*Size): Image width and height
-		r(*Rect): Rectangle
-		s(float64): Scale number
+		id(int): class ID
+		imSz(*Size): image width and height
+		r(*Rect): rectangle
+		s(float64): scale number
 
 	Returns:
-		ob(*Box): Original Box relative to origin image
+		ob(*Box): original Box relative to origin image
 		rb(*Box): ROI Box relative to origin image
-		b(*Box): Object Box relative to ROI
+		b(*Box): object Box relative to ROI
 	*/
-
-	ob := NewBox(r, imSz)
+	// TODO: trim and scale
+	id := k.Cls.GetID(k.Name)
+	ob := NewBox(id, r, imSz)
 	off := NewOffset(ob.Sz.W*s, ob.Sz.H*s)
 	rRct := NewRect(
 		ob.Rct.Xtl-off.X, ob.Rct.Ytl-off.Y,
 		ob.Rct.Xbr+off.X, ob.Rct.Ybr+off.Y,
 	)
-	rb := NewBox(rRct, imSz)
+	rb := NewBox(id, rRct, imSz)
 	oRct := NewRect(
 		ob.Rct.Xtl-rb.Rct.Xtl, ob.Rct.Ytl-rb.Rct.Ytl,
 		ob.Rct.Xbr-rb.Rct.Xtl, ob.Rct.Ybr-rb.Rct.Ytl,
 	)
-	b := NewBox(oRct, &rb.Sz)
+	b := NewBox(id, oRct, &rb.Sz)
 
 	return ob, rb, b, off
 }

@@ -14,7 +14,24 @@ type ScaleBox struct {
 	H  float64
 }
 
+func NewScl(x float64, y float64, w float64, h float64) *ScaleBox {
+	/*ScaleBox init function
+
+	Args:
+		x(float64): Central x in ratio
+		y(float64): Central y in ratio
+		w(float64): Width in ratio
+		h(float64): Height in ratio
+
+	Returns:
+		(*ScaleBox): Pointer to a ScaleBox object
+	*/
+
+	return &ScaleBox{Xc: x, Yc: y, W: w, H: h}
+}
+
 type Box struct {
+	ID    int
 	ImgSz Size
 	Sz    Size
 	Rct   Rect
@@ -51,12 +68,13 @@ func NewRect(xmin float64, ymin float64, xmax float64, ymax float64) *Rect {
 	return &Rect{Xtl: xmin, Ytl: ymin, Xbr: xmax, Ybr: ymax}
 }
 
-func NewBox(r *Rect, s *Size) *Box {
+func NewBox(id int, r *Rect, s *Size) *Box {
 	/*Box init function, takes Rect in, then
 	calculate box size and scaled box:
 	[x_central, y_cenral, width, height]
 
 	Args:
+		id(int): Object class ID
 		r(*Rect): Rectangle represent a bounding box
 		s(*Sect): Image width and height
 
@@ -64,20 +82,20 @@ func NewBox(r *Rect, s *Size) *Box {
 		(*Box): Pointer to a Box object
 	*/
 
-	box := Box{ImgSz: *s, Rct: *r}
-	box.trim()
-	box.bale()
+	box := Box{ID: id, ImgSz: *s, Rct: *r}
+	// box.Trim()
+	// box.Scale()
 
 	return &box
 }
 
-func (b *Box) trim() {
+func (b *Box) Trim() *Box {
 	/*Adjust box value taht out of boundary
 
 	Args:
 		None
 	Returns:
-		None
+		b(*Box): Box object after trimed
 	*/
 
 	if b.Rct.Xtl < 0 {
@@ -92,16 +110,18 @@ func (b *Box) trim() {
 	if b.Rct.Ybr >= float64(b.ImgSz.H) {
 		b.Rct.Ybr = float64(b.ImgSz.H) - 1
 	}
+
+	return b
 }
 
-func (b *Box) bale() {
+func (b *Box) Scale() *Box {
 	/*Calcualte scaled box
 
 	Args:
 		None
 
 	Returns:
-		None
+		b(*Box): Box object after scaled
 	*/
 
 	b.Sz.W = b.Rct.Xbr - b.Rct.Xtl + 1
@@ -110,4 +130,26 @@ func (b *Box) bale() {
 	b.Scl.Yc = (b.Rct.Ytl + b.Rct.Ybr) / 2 / b.ImgSz.H
 	b.Scl.W = b.Sz.W / b.ImgSz.W
 	b.Scl.H = b.Sz.H / b.ImgSz.H
+
+	return b
+}
+
+func (b *Box) UnScale() *Box {
+	/*Calcualte scaled box
+
+	Args:
+		None
+
+	Returns:
+		b(*Box): Box object after unscaled
+	*/
+
+	b.Sz.W = b.Scl.W * b.ImgSz.W
+	b.Sz.H = b.Scl.H * b.ImgSz.H
+	b.Rct.Xtl = (b.Scl.Xc*b.ImgSz.W*2 - b.Sz.W + 1) / 2
+	b.Rct.Ytl = (b.Scl.Yc*b.ImgSz.H*2 - b.Sz.H + 1) / 2
+	b.Rct.Xbr = b.Rct.Xtl + b.Sz.W
+	b.Rct.Ybr = b.Rct.Ytl + b.Sz.H
+
+	return b
 }

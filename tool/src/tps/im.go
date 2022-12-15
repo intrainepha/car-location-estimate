@@ -117,3 +117,7 @@ func (i *Im) Crop(r *Rect) *Im {
 
 	return &Im{Data: res, Sz: sz}
 }
+
+func DrawRect() {
+
+}

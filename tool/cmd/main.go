@@ -17,13 +17,13 @@ import (
 )
 
 func formROILabel(id int, b *tp.Box, l *tp.Location, rb *tp.Box) string {
-	/*Transform data into ROI formate:
+	/*Transform data into ROI format:
 		| Class_ID | Bounding_box | Location | ROI Bounding_box |
 
 	Args:
-		id(int): Class ID
-		b(*tp.Box): Object box that relative to ROI image
-		l(*tp.Location): X-distence and Y-distance in the real world
+		id(int): class ID
+		b(*tp.Box): object box that relative to ROI image
+		l(*tp.Location): x-distence and Y-distance in the real world
 		rb(*tp.Box): ROI box that relative to origin image
 
 	Returns:
@@ -42,7 +42,7 @@ func formROILabel(id int, b *tp.Box, l *tp.Location, rb *tp.Box) string {
 	return strings.Join(ss, " ")
 }
 
-func runCrop(root string, freq int, cls []string) error {
+func runCrop(root string, freq int) {
 	/*Crop Region of interest (ROI) from image with label formated in kitti approch.
 			root/
 				├──images
@@ -60,10 +60,15 @@ func runCrop(root string, freq int, cls []string) error {
 
 	root, err := filepath.Abs(root)
 	op.CheckE(err)
+	clsPath := path.Join(root, "cls.txt")
+	clsF, err := tp.NewTXT(clsPath)
+	op.CheckE(err)
+	cls := clsF.ReadLines()
+	ds := path.Base(root)
 	imDir := path.Join(root, "images")
 	lbDir := path.Join(root, "labels")
-	imDirROI := path.Join(root, "roi_img")
-	lbDirROI := path.Join(root, "roi_label")
+	imDirROI := path.Join(strings.Replace(root, ds, ds+"_roi", 1), "images")
+	lbDirROI := path.Join(strings.Replace(root, ds, ds+"_roi", 1), "labels")
 	op.CleanDir(imDirROI, lbDirROI)
 	files, err := os.ReadDir(imDir)
 	op.CheckE(err)
@@ -82,9 +87,9 @@ func runCrop(root string, freq int, cls []string) error {
 		defer oTXT.Close()
 		op.CheckE(oTXT.Load())
 		for j, l := range oTXT.ReadLines() {
-			kt := tp.NewKITTI(l)
-			clsID, err := kt.Check(cls)
-			if err != nil {
+			kt := tp.NewKITTI(cls, l)
+			id := kt.Cls.GetID(kt.Name)
+			if !kt.Check(cls) {
 				continue
 			}
 			rct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
@@ -96,9 +101,8 @@ func runCrop(root string, freq int, cls []string) error {
 			tTXT, err := tp.NewTXT(p)
 			op.CheckE(err)
 			defer tTXT.Close()
-			tTXT.WriteLine(formROILabel(clsID, b, &kt.Loc, rb))
-			// tp.SaveTXT(p, clsID, b, &kt.Loc, rb)
-			// Augment
+			err = tTXT.WriteLine(formROILabel(id, b, &kt.Loc, rb))
+			op.CheckE(err)
 			orient := [4][4]float64{
 				{0, 1, 0, 1},   // move up
 				{0, -1, 0, -1}, // move down
@@ -130,15 +134,49 @@ func runCrop(root string, freq int, cls []string) error {
 				atTXT, err := tp.NewTXT(p)
 				op.CheckE(err)
 				defer atTXT.Close()
-				atTXT.WriteLine(formROILabel(clsID, b, &kt.Loc, rb))
+				atTXT.WriteLine(formROILabel(id, b, &kt.Loc, rb))
 			}
 		}
 	}
-
-	return nil
 }
 
-func runList(root string, cls []string) error {
+// func visualize(root string) {
+// 	/*Draw bounding box of object to image
+
+// 	Args:
+// 		root(string): Directory contains data files
+
+// 	Returns:
+// 		error
+// 	*/
+
+// 	root, err := filepath.Abs(root)
+// 	op.CheckE(err)
+// 	imDir := path.Join(root, "images")
+// 	lbDir := path.Join(root, "labels")
+// 	fs, err := os.ReadDir(lbDir)
+// 	op.CheckE(err)
+// 	bar := pb.Default(int64(len(fs)), "Visulization:")
+// 	for _, f := range fs {
+// 		bar.Add(1)
+// 		imPath := path.Join(imDir, strings.Replace(f.Name(), ".txt", ".jpg", 1))
+// 		im := tp.NewIm()
+// 		im.Load(imPath)
+// 		lbPath := path.Join(imDir, f.Name())
+// 		lb, err := tp.NewTXT(lbPath)
+// 		op.CheckE(err)
+// 		lbs := strings.Split(lb.Content, " ")
+// 		b := tp.NewBox(op.Str2int(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
+// 		b.ImgSz = im.Sz
+// 		b.Scl = *tp.NewScl(
+// 			op.Str2f64(lbs[1]), op.Str2f64(lbs[2]), op.Str2f64(lbs[3]), op.Str2f64(lbs[4]),
+// 		)
+// 		b.UnScale()
+// 	}
+
+// }
+
+func runList(root string, cls []string) {
 	/*Generate paths.txt file, which contains data paths with each
 	data path in one line, this file format is required by yolo-v3.
 
@@ -161,7 +199,6 @@ func runList(root string, cls []string) error {
 	*/
 
 	root, err := filepath.Abs(root)
-	log.Println("Target Directory:", root)
 	op.CheckE(err)
 	txt := path.Join(root, "paths.txt")
 	file, err := os.OpenFile(txt, os.O_RDONLY|os.O_CREATE, 0755)
@@ -180,7 +217,6 @@ func runList(root string, cls []string) error {
 		}
 
 	}
-	return nil
 }
 
 func main() {
@@ -191,7 +227,6 @@ func main() {
 	cropCmd := flag.NewFlagSet("crop", flag.ExitOnError)
 	cropDir := cropCmd.String("dir", "", "Directory")
 	cropFreq := cropCmd.Int("freq", 1, "Frequence")
-	cropCls := cropCmd.String("cls", "", "Classes")
 
 	if len(os.Args) < 2 {
 		log.Fatal("Expected subcommands!")
@@ -201,13 +236,10 @@ func main() {
 	case "list":
 		listCmd.Parse(os.Args[2:])
 		classes := strings.Split(*listCls, ",")
-		err := runList(*listDir, classes)
-		op.CheckE(err)
+		runList(*listDir, classes)
 	case "crop":
 		cropCmd.Parse(os.Args[2:])
-		classes := strings.Split(*cropCls, ",")
-		err := runCrop(*cropDir, *cropFreq, classes)
-		op.CheckE(err)
+		runCrop(*cropDir, *cropFreq)
 	default:
 		log.Println("Expected subcommands")
 		os.Exit(1)

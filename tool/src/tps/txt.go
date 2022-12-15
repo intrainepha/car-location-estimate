@@ -61,7 +61,7 @@ func (t *TXT) Load() error {
 }
 
 func (t *TXT) ReadLines() []string {
-	/*Load *.txt file.
+	/*Read lines from *.txt file.
 
 	Args:
 		None
@@ -73,17 +73,29 @@ func (t *TXT) ReadLines() []string {
 	return strings.Split(t.Content, "\n")
 }
 
-func (t *TXT) WriteLine(s string) {
+func (t *TXT) WriteLine(s string) error {
 	/*Write line date to file buffer
 
 	Args:
 		None
 
 	Returns:
-		([]string): Line data from text file
+		(error)
 	*/
 
-	t.File.WriteString(s + "\n")
+	info, err := os.Stat(t.Path)
+	if err != nil {
+		return err
+	} else {
+		if info.Size() == 0 {
+			t.File.WriteString(s)
+		} else {
+			t.File.WriteString("\n" + s)
+		}
+
+	}
+
+	return nil
 }
 
 func (t *TXT) Close() {
