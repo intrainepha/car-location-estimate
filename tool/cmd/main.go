@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"image/color"
 	"log"
 	"math/rand"
 	"os"
@@ -73,8 +74,7 @@ func runCrop(root string, freq int, clsPath string) {
 		if i%freq != 0 {
 			continue
 		}
-		im := tp.NewIm()
-		err := im.Load(path.Join(imDir, f.Name()))
+		im, err := tp.NewImData().Load(path.Join(imDir, f.Name()))
 		op.CheckE(err)
 		p := path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1))
 		oFile, err := tp.NewFile(p)
@@ -135,7 +135,7 @@ func runCrop(root string, freq int, clsPath string) {
 	}
 }
 
-func visualize(root string) {
+func runVis(root string) {
 	/*Draw bounding box of object to image
 
 	Args:
@@ -153,7 +153,7 @@ func visualize(root string) {
 	op.CheckE(err)
 	for _, f := range fs {
 		imPath := path.Join(imDir, strings.Replace(f.Name(), ".txt", ".jpg", 1))
-		im := tp.NewIm()
+		im := tp.NewImData()
 		im.Load(imPath)
 		lbPath := path.Join(imDir, f.Name())
 		lb, err := tp.NewFile(lbPath)
@@ -166,7 +166,13 @@ func visualize(root string) {
 			op.Str2f64(lbs[3]), op.Str2f64(lbs[4]),
 		)
 		b.UnScale()
-
+		im.DrawRect(&b.Rct, color.RGBA{
+			A: 255,
+			R: 255,
+			G: 1,
+			B: 1,
+		})
+		im.Save(strings.Replace(imPath, "images", "vis", 1))
 	}
 
 }
@@ -223,6 +229,9 @@ func main() {
 	cropFreq := cropCmd.Int("freq", 1, "Frequence")
 	cropCls := cropCmd.String("cls", "", "Classes file")
 
+	visCmd := flag.NewFlagSet("vis", flag.ExitOnError)
+	visDir := visCmd.String("dir", "", "Directory")
+
 	if len(os.Args) < 2 {
 		log.Fatal("Expected subcommands!")
 	}
@@ -235,6 +244,9 @@ func main() {
 	case "crop":
 		cropCmd.Parse(os.Args[2:])
 		runCrop(*cropDir, *cropFreq, *cropCls)
+	case "vis":
+		cropCmd.Parse(os.Args[2:])
+		runVis(*visDir)
 	default:
 		log.Println("Expected subcommands")
 		os.Exit(1)

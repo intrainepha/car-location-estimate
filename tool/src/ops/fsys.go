@@ -7,8 +7,8 @@ func CheckDir(d string) bool {
 	return os.IsNotExist(err)
 }
 
-func CleanDir(dirs ...string) {
-	for _, d := range dirs {
+func CleanDir(ds ...string) {
+	for _, d := range ds {
 		err := os.RemoveAll(d)
 		CheckE(err)
 		err = os.MkdirAll(d, 0755)

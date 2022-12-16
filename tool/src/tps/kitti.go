@@ -101,12 +101,12 @@ func (k *KITTI) Check(cls []string) bool {
 	return true
 }
 
-func (k *KITTI) MakeROI(imSz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offset) {
+func (k *KITTI) MakeROI(imsz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offset) {
 	/*Make ROI Box
 
 	Args:
 		id(int): class ID
-		imSz(*Size): image width and height
+		imsz(*Size): image width and height
 		r(*Rect): rectangle
 		s(float64): scale number
 
@@ -117,13 +117,13 @@ func (k *KITTI) MakeROI(imSz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offs
 	*/
 
 	id := k.Cls.GetID(k.Name)
-	ob := NewBox(id, r, imSz)
+	ob := NewBox(id, r, imsz)
 	off := NewOffset(ob.Sz.W*s, ob.Sz.H*s)
 	rRct := NewRect(
 		ob.Rct.Xtl-off.X, ob.Rct.Ytl-off.Y,
 		ob.Rct.Xbr+off.X, ob.Rct.Ybr+off.Y,
 	)
-	rb := NewBox(id, rRct, imSz).Trim()
+	rb := NewBox(id, rRct, imsz).Trim()
 	oRct := NewRect(
 		ob.Rct.Xtl-rb.Rct.Xtl, ob.Rct.Ytl-rb.Rct.Ytl,
 		ob.Rct.Xbr-rb.Rct.Xtl, ob.Rct.Ybr-rb.Rct.Ytl,

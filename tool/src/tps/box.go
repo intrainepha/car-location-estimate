@@ -52,20 +52,20 @@ func NewSize(w float64, h float64) *Size {
 	return &Size{W: w, H: h}
 }
 
-func NewRect(xmin float64, ymin float64, xmax float64, ymax float64) *Rect {
+func NewRect(xtl float64, ytl float64, xbr float64, ybr float64) *Rect {
 	/*Rect init function
 
 	Args:
-		xmin(float64): x value of top-left point
-		ymin(float64): y value of top-left point
-		xmax(float64): x value of bottom-right point
-		ymax(float64): y value of bottom-right point
+		xtl(float64): x value of top-left point
+		ytl(float64): y value of top-left point
+		xbr(float64): x value of bottom-right point
+		ybr(float64): y value of bottom-right point
 
 	Returns:
 		(*Rect): Pointer to a Rect object
 	*/
 
-	return &Rect{Xtl: xmin, Ytl: ymin, Xbr: xmax, Ybr: ymax}
+	return &Rect{Xtl: xtl, Ytl: ytl, Xbr: xbr, Ybr: ybr}
 }
 
 func NewBox(id int, r *Rect, s *Size) *Box {
