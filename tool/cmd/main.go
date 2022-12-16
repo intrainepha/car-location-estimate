@@ -59,6 +59,8 @@ func runCrop(root string, freq int, clsPath string) {
 
 	root, err := filepath.Abs(root)
 	op.CheckE(err)
+	clsPath, err = filepath.Abs(clsPath)
+	op.CheckE(err)
 	clsF, err := tp.NewFile(clsPath)
 	op.CheckE(err)
 	cls := clsF.ReadLines()
@@ -80,11 +82,11 @@ func runCrop(root string, freq int, clsPath string) {
 		oFile, err := tp.NewFile(p)
 		op.CheckE(err)
 		defer oFile.Close()
-		op.CheckE(oFile.Load())
+		op.CheckE(oFile.Read())
 		for j, l := range oFile.ReadLines() {
 			kt := tp.NewKITTI(cls, l)
 			id := kt.Cls.GetID(kt.Name)
-			if !kt.Check(cls) {
+			if kt.FilterOut() {
 				continue
 			}
 			rct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)

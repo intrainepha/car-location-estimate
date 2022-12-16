@@ -1,6 +1,7 @@
 package tps
 
 import (
+	"fmt"
 	"math"
 	"strings"
 
@@ -71,7 +72,7 @@ func NewKITTI(cls []string, l string) *KITTI {
 	}
 }
 
-func (k *KITTI) Check(cls []string) bool {
+func (k *KITTI) FilterOut() bool {
 	/*Kitti init function
 
 	Args:
@@ -83,22 +84,22 @@ func (k *KITTI) Check(cls []string) bool {
 
 	if k.Cls.GetID(k.Name) == -1 {
 		//Class is not selected
-		return false
+		return true
 	}
 	if k.Trct != 0 {
 		// return fmt.Errorf("sample is truncated")
-		return false
+		return true
 	}
 	if k.Ocld != 0 {
 		// return fmt.Errorf("sample is occluded")
-		return false
+		return true
 	}
 	if math.Abs(k.Loc.X) > 8 || k.Loc.Y < 0 || k.Loc.Y > 80 {
 		// return fmt.Errorf("sample location is out of range")
-		return false
+		return true
 	}
 
-	return true
+	return false
 }
 
 func (k *KITTI) MakeROI(imsz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offset) {
@@ -118,6 +119,7 @@ func (k *KITTI) MakeROI(imsz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offs
 
 	id := k.Cls.GetID(k.Name)
 	ob := NewBox(id, r, imsz)
+	fmt.Println(ob.Sz.W, ob.Sz.H) // FIXME: size==[0,0]
 	off := NewOffset(ob.Sz.W*s, ob.Sz.H*s)
 	rRct := NewRect(
 		ob.Rct.Xtl-off.X, ob.Rct.Ytl-off.Y,

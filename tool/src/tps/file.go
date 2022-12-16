@@ -40,7 +40,7 @@ func NewFile(p string) (*File, error) {
 	return &File{Path: p, File: *f}, nil
 }
 
-func (t *File) Load() error {
+func (t *File) Read() error {
 	/*Load file content, create a new one if it does not exist
 
 	Args:
@@ -69,6 +69,8 @@ func (t *File) ReadLines() []string {
 	Returns:
 		([]string): line data from file
 	*/
+
+	t.Read()
 
 	return strings.Split(t.Content, "\n")
 }
