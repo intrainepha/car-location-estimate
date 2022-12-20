@@ -19,7 +19,7 @@ Returns:
 func Str2int(str string) int {
 	intNum, err := strconv.Atoi(str)
 	if err != nil {
-		log.Println(err)
+		log.Panic(err)
 	}
 	return intNum
 }
@@ -38,7 +38,7 @@ Returns:
 func Str2f64(str string) float64 {
 	floatNum, err := strconv.ParseFloat(str, 64)
 	if err != nil {
-		log.Println(err)
+		log.Panic(err)
 	}
 	return floatNum
 }

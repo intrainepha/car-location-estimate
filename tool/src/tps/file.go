@@ -32,12 +32,12 @@ func NewFile(p string) *File {
 	if !op.CheckDir(d) {
 		err := os.MkdirAll(d, 0755)
 		if err != nil {
-			log.Println(err)
+			log.Panic(err)
 		}
 	}
 	f, err := os.OpenFile(p, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
-		log.Println(err)
+		log.Panic(err)
 	}
 	return &File{Path: p, File: *f}
 }
@@ -54,12 +54,14 @@ Returns:
 	(*File)
 	(error)
 */
-func (t *File) Read() {
+func (t *File) Read() string {
 	bt, err := os.ReadFile(t.Path)
 	if err != nil {
-		log.Println(err)
+		log.Panic(err)
 	}
 	t.Content = strings.Trim(string(bt), "\n")
+
+	return t.Content
 }
 
 /*Read lines from *.File file.
@@ -88,7 +90,7 @@ Returns:
 func (t *File) WriteLine(s string) {
 	info, err := os.Stat(t.Path)
 	if err != nil {
-		log.Println(err)
+		log.Panic(err)
 	} else {
 		if info.Size() == 0 {
 			t.File.WriteString(s)

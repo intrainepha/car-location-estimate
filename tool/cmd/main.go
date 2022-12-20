@@ -66,7 +66,6 @@ Returns:
 	error
 */
 func runCrop(root string, freq int, clsPath string) {
-	clsPath, _ = filepath.Abs(clsPath)
 	clsF := tp.NewFile(clsPath)
 	cls := clsF.ReadLines()
 	ds := path.Base(root)
@@ -151,7 +150,7 @@ func runVis(root string) {
 	lbDir := path.Join(root, "labels")
 	fs, err := os.ReadDir(imDir)
 	if err != nil {
-		log.Println(err)
+		log.Panic(err)
 	}
 	for _, f := range fs {
 		imPath := path.Join(imDir, f.Name())
@@ -159,8 +158,8 @@ func runVis(root string) {
 		im.Load(imPath)
 		sfx := strings.Split(f.Name(), ".")[len(strings.Split(f.Name(), "."))-1]
 		lbPath := path.Join(lbDir, strings.Replace(f.Name(), "."+sfx, ".txt", 1))
-		lb := tp.NewFile(lbPath)
-		lbs := strings.Split(lb.Content, " ")
+		lb := tp.NewFile(lbPath).Read()
+		lbs := strings.Split(lb, " ")
 		b := tp.NewBox(op.Str2int(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
 		b.ImSz = im.Sz
 		b.Scl = *tp.NewScl(
@@ -206,11 +205,11 @@ func runList(root string, cls []string) {
 	txt := path.Join(root, "paths.txt")
 	file, err := os.OpenFile(txt, os.O_RDONLY|os.O_CREATE, 0755)
 	if err != nil {
-		log.Println(err)
+		log.Panic(err)
 	}
 	defer file.Close()
 	for i, c := range cls {
-		log.Println(i, c)
+		log.Panic(i, c)
 		imgDir := path.Join(root, c, "images")
 		_, _ = os.Stat(imgDir)
 		files, _ := os.ReadDir(imgDir)
@@ -247,13 +246,14 @@ func main() {
 	case "crop":
 		cropCmd.Parse(os.Args[2:])
 		r, _ := filepath.Abs(*cropDir)
-		runCrop(r, *cropFreq, *cropCls)
+		clsPath, _ := filepath.Abs(*cropCls)
+		runCrop(r, *cropFreq, clsPath)
 	case "vis":
-		cropCmd.Parse(os.Args[2:])
+		visCmd.Parse(os.Args[2:])
 		r, _ := filepath.Abs(*visDir)
 		runVis(r)
 	default:
-		log.Println("Expected subcommands")
+		log.Panic("Expected subcommands")
 		os.Exit(1)
 	}
 }
