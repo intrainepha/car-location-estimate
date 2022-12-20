@@ -1,5 +1,9 @@
 package main
 
+// TODO: Debug visualization
+// TODO: Timer
+// TODO: Goroutine
+
 import (
 	"flag"
 	"image/color"
@@ -62,9 +66,8 @@ Returns:
 	error
 */
 func runCrop(root string, freq int, clsPath string) {
-	root, _ = filepath.Abs(root)
 	clsPath, _ = filepath.Abs(clsPath)
-	clsF, _ := tp.NewFile(clsPath)
+	clsF := tp.NewFile(clsPath)
 	cls := clsF.ReadLines()
 	ds := path.Base(root)
 	imDir := path.Join(root, "images")
@@ -77,9 +80,9 @@ func runCrop(root string, freq int, clsPath string) {
 		if i%freq != 0 {
 			continue
 		}
-		im, _ := tp.NewImData().Load(path.Join(imDir, f.Name()))
+		im := tp.NewImData().Load(path.Join(imDir, f.Name()))
 		p := path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1))
-		oFile, _ := tp.NewFile(p)
+		oFile := tp.NewFile(p)
 		defer oFile.Close()
 		for j, l := range oFile.ReadLines() {
 			kt := tp.NewKITTI(cls, l)
@@ -94,9 +97,9 @@ func runCrop(root string, freq int, clsPath string) {
 			p = path.Join(imDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".jpg", 1))
 			imSub.Save(p)
 			p = path.Join(lbDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".txt", 1))
-			tFile, _ := tp.NewFile(p)
+			tFile := tp.NewFile(p)
 			defer tFile.Close()
-			_ = tFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
+			tFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
 			orient := [4][4]float64{
 				{0, 1, 0, 1},   // move up
 				{0, -1, 0, -1}, // move down
@@ -124,7 +127,7 @@ func runCrop(root string, freq int, clsPath string) {
 					lbDirROI,
 					strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".txt", 1),
 				)
-				atFile, _ := tp.NewFile(p)
+				atFile := tp.NewFile(p)
 				defer atFile.Close()
 				atFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
 			}
@@ -144,17 +147,19 @@ Returns:
 	error
 */
 func runVis(root string) {
-	root, _ = filepath.Abs(root)
 	imDir := path.Join(root, "images")
 	lbDir := path.Join(root, "labels")
-	fs, _ := os.ReadDir(imDir)
+	fs, err := os.ReadDir(imDir)
+	if err != nil {
+		log.Println(err)
+	}
 	for _, f := range fs {
 		imPath := path.Join(imDir, f.Name())
 		im := tp.NewImData()
 		im.Load(imPath)
 		sfx := strings.Split(f.Name(), ".")[len(strings.Split(f.Name(), "."))-1]
 		lbPath := path.Join(lbDir, strings.Replace(f.Name(), "."+sfx, ".txt", 1))
-		lb, _ := tp.NewFile(lbPath)
+		lb := tp.NewFile(lbPath)
 		lbs := strings.Split(lb.Content, " ")
 		b := tp.NewBox(op.Str2int(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
 		b.ImSz = im.Sz
@@ -198,9 +203,11 @@ Returns:
 	None
 */
 func runList(root string, cls []string) {
-	root, _ = filepath.Abs(root)
 	txt := path.Join(root, "paths.txt")
-	file, _ := os.OpenFile(txt, os.O_RDONLY|os.O_CREATE, 0755)
+	file, err := os.OpenFile(txt, os.O_RDONLY|os.O_CREATE, 0755)
+	if err != nil {
+		log.Println(err)
+	}
 	defer file.Close()
 	for i, c := range cls {
 		log.Println(i, c)
@@ -234,14 +241,17 @@ func main() {
 	switch os.Args[1] {
 	case "list":
 		listCmd.Parse(os.Args[2:])
+		r, _ := filepath.Abs(*listDir)
 		classes := strings.Split(*listCls, ",")
-		runList(*listDir, classes)
+		runList(r, classes)
 	case "crop":
 		cropCmd.Parse(os.Args[2:])
-		runCrop(*cropDir, *cropFreq, *cropCls)
+		r, _ := filepath.Abs(*cropDir)
+		runCrop(r, *cropFreq, *cropCls)
 	case "vis":
 		cropCmd.Parse(os.Args[2:])
-		runVis(*visDir)
+		r, _ := filepath.Abs(*visDir)
+		runVis(r)
 	default:
 		log.Println("Expected subcommands")
 		os.Exit(1)

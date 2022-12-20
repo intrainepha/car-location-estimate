@@ -52,25 +52,25 @@ Args:
 
 Returns:
 
-	error
+	*ImData
 */
-func (i *ImData) Load(p string) (*ImData, error) {
+func (i *ImData) Load(p string) *ImData {
 	bt, err := os.ReadFile(p)
 	if err != nil {
-		return &ImData{}, err
+		log.Println(err)
 	}
 	info, _, err := image.DecodeConfig(bytes.NewReader(bt))
 	if err != nil {
-		return &ImData{}, err
+		log.Println(err)
 	}
 	i.Sz = *NewSize(info.Width, info.Height)
 	im, _, err := image.Decode(bytes.NewReader(bt))
 	if err != nil {
-		return &ImData{}, err
+		log.Println(err)
 	}
 	i.Image = im
 	i.ToRGBA()
-	return i, nil
+	return i
 }
 
 /*
@@ -100,9 +100,9 @@ Args:
 
 Returns:
 
-	error
+	None
 */
-func (i *ImData) Save(p string) error {
+func (i *ImData) Save(p string) {
 	formats := [...]string{"png", "jpg"}
 	strs := strings.Split(p, ".")
 	suffix := strs[len(strs)-1]
@@ -118,13 +118,12 @@ func (i *ImData) Save(p string) error {
 	}
 	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE, 0755)
 	if err != nil {
-		return err
+		log.Println(err)
 	}
 	err = jpeg.Encode(f, i.RGBA, &jpeg.Options{Quality: 100})
 	if err != nil {
-		return err
+		log.Println(err)
 	}
-	return nil
 }
 
 /*

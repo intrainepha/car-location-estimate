@@ -1,6 +1,9 @@
 package ops
 
-import "os"
+import (
+	"log"
+	"os"
+)
 
 func CheckDir(d string) bool {
 	_, err := os.Stat(d)
@@ -9,7 +12,13 @@ func CheckDir(d string) bool {
 
 func CleanDir(ds ...string) {
 	for _, d := range ds {
-		os.RemoveAll(d)
-		os.MkdirAll(d, 0755)
+		err := os.RemoveAll(d)
+		if err != nil {
+			log.Println(err)
+		}
+		err = os.MkdirAll(d, 0755)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }

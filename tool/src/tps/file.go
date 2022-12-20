@@ -1,6 +1,7 @@
 package tps
 
 import (
+	"log"
 	"os"
 	"path"
 	"strings"
@@ -26,21 +27,19 @@ Returns:
 	(*File)
 	(error)
 */
-func NewFile(p string) (*File, error) {
-
+func NewFile(p string) *File {
 	d := path.Dir(p)
 	if !op.CheckDir(d) {
 		err := os.MkdirAll(d, 0755)
 		if err != nil {
-			return &File{}, err
+			log.Println(err)
 		}
 	}
 	f, err := os.OpenFile(p, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
-		return &File{}, err
+		log.Println(err)
 	}
-
-	return &File{Path: p, File: *f}, nil
+	return &File{Path: p, File: *f}
 }
 
 /*
@@ -55,15 +54,12 @@ Returns:
 	(*File)
 	(error)
 */
-func (t *File) Read() error {
-
+func (t *File) Read() {
 	bt, err := os.ReadFile(t.Path)
 	if err != nil {
-		return err
+		log.Println(err)
 	}
 	t.Content = strings.Trim(string(bt), "\n")
-
-	return nil
 }
 
 /*Read lines from *.File file.
@@ -77,7 +73,6 @@ Returns:
 
 func (t *File) ReadLines() []string {
 	t.Read()
-
 	return strings.Split(t.Content, "\n")
 }
 
@@ -90,10 +85,10 @@ Returns:
 	(error)
 */
 
-func (t *File) WriteLine(s string) error {
+func (t *File) WriteLine(s string) {
 	info, err := os.Stat(t.Path)
 	if err != nil {
-		return err
+		log.Println(err)
 	} else {
 		if info.Size() == 0 {
 			t.File.WriteString(s)
@@ -102,8 +97,6 @@ func (t *File) WriteLine(s string) error {
 		}
 
 	}
-
-	return nil
 }
 
 /*Close os.File buffer.
