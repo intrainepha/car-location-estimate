@@ -144,16 +144,6 @@ Returns:
 */
 func (i *ImData) Crop(r *Rect) *ImData {
 	ir := image.Rect(int(r.Xtl), int(r.Ytl), int(r.Xbr), int(r.Ybr))
-	// var dst image.Image
-	// type subImageSupported interface {
-	// 	SubImage(r image.Rectangle) image.Image
-	// }
-	// if sImg, ok := i.Image.(subImageSupported); ok {
-	// 	im := i.Image.SubImage(ir)
-	// } else {
-	// dst := image.NewRGBA(ir)
-	// draw.Draw(dst, ir, i.Image, ir.Min, draw.Src)
-	// }
 	imD := NewImData()
 	imD.Image = i.RGBA.SubImage(ir)
 	imD.Sz = *NewSize(r.Xbr-r.Xtl+1, r.Ybr-r.Ytl+1)
@@ -172,9 +162,6 @@ func (i *ImData) DrawRect(r *Rect, c color.Color) {
 		int(r.Xtl)+bold, int(r.Ytl)+bold,
 		int(r.Xbr)-bold, int(r.Ybr)-bold,
 	)
-	// bounds := i.Image.Bounds()
-	// dst := image.NewRGBA(bounds)
-	// draw.Draw(dst, bounds, i.Image, bounds.Min, draw.Over)
 	imSub := i.Crop(r)
 	for y := 0; y < int(imSub.Sz.H); y++ {
 		for x := 0; x < int(imSub.Sz.W); x++ {

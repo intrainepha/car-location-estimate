@@ -1,7 +1,6 @@
 package tps
 
 import (
-	"fmt"
 	"math"
 	"strings"
 
@@ -60,8 +59,8 @@ Returns:
 func NewKITTI(cls []string, l string) *KITTI {
 	info := strings.Split(l, " ")
 	rct := *NewRect(
-		op.Str2int(info[4]), op.Str2int(info[5]),
-		op.Str2int(info[6]), op.Str2int(info[7]),
+		int(op.Str2f64(info[4])), int(op.Str2f64(info[5])),
+		int(op.Str2f64(info[6])), int(op.Str2f64(info[7])),
 	)
 
 	loc := *NewLoc(op.Str2f64(info[11]), op.Str2f64(info[13]))
@@ -76,7 +75,11 @@ func NewKITTI(cls []string, l string) *KITTI {
 }
 
 /*
-Kitti init function
+Filter with conditions:
+ 1. Class is not selected
+ 2. Sample is truncated
+ 3. Sample is occluded
+ 4. Sample location is out of range
 
 Args:
 
@@ -87,24 +90,18 @@ Returns:
 	(*KITTI): pointer to KITTI object
 */
 func (k *KITTI) FilterOut() bool {
-
 	if k.Cls.GetID(k.Name) == -1 {
-		//Class is not selected
 		return true
 	}
 	if k.Trct != 0 {
-		// return fmt.Errorf("sample is truncated")
 		return true
 	}
 	if k.Ocld != 0 {
-		// return fmt.Errorf("sample is occluded")
 		return true
 	}
 	if math.Abs(k.Loc.X) > 8 || k.Loc.Y < 0 || k.Loc.Y > 80 {
-		// return fmt.Errorf("sample location is out of range")
 		return true
 	}
-
 	return false
 }
 
@@ -125,10 +122,8 @@ Returns:
 	b(*Box): object Box relative to ROI
 */
 func (k *KITTI) MakeROI(imsz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offset) {
-
 	id := k.Cls.GetID(k.Name)
 	ob := NewBox(id, r, imsz)
-	fmt.Println(ob.Sz.W, ob.Sz.H)
 	off := NewOffset(int(float64(ob.Sz.W)*s), int(float64(ob.Sz.H)*s))
 	rRct := NewRect(
 		ob.Rct.Xtl-off.X, ob.Rct.Ytl-off.Y,
@@ -140,6 +135,5 @@ func (k *KITTI) MakeROI(imsz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offs
 		ob.Rct.Xbr-rb.Rct.Xtl, ob.Rct.Ybr-rb.Rct.Ytl,
 	)
 	b := NewBox(id, oRct, &rb.Sz).Trim().Scale()
-
 	return ob, rb, b, off
 }

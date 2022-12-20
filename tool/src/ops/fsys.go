@@ -9,9 +9,7 @@ func CheckDir(d string) bool {
 
 func CleanDir(ds ...string) {
 	for _, d := range ds {
-		err := os.RemoveAll(d)
-		CheckE(err)
-		err = os.MkdirAll(d, 0755)
-		CheckE(err)
+		os.RemoveAll(d)
+		os.MkdirAll(d, 0755)
 	}
 }

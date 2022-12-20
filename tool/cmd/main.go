@@ -62,13 +62,9 @@ Returns:
 	error
 */
 func runCrop(root string, freq int, clsPath string) {
-
-	root, err := filepath.Abs(root)
-	op.CheckE(err)
-	clsPath, err = filepath.Abs(clsPath)
-	op.CheckE(err)
-	clsF, err := tp.NewFile(clsPath)
-	op.CheckE(err)
+	root, _ = filepath.Abs(root)
+	clsPath, _ = filepath.Abs(clsPath)
+	clsF, _ := tp.NewFile(clsPath)
 	cls := clsF.ReadLines()
 	ds := path.Base(root)
 	imDir := path.Join(root, "images")
@@ -76,19 +72,15 @@ func runCrop(root string, freq int, clsPath string) {
 	imDirROI := path.Join(strings.Replace(root, ds, ds+"_roi", 1), "images")
 	lbDirROI := path.Join(strings.Replace(root, ds, ds+"_roi", 1), "labels")
 	op.CleanDir(imDirROI, lbDirROI)
-	files, err := os.ReadDir(imDir)
-	op.CheckE(err)
+	files, _ := os.ReadDir(imDir)
 	for i, f := range files {
 		if i%freq != 0 {
 			continue
 		}
-		im, err := tp.NewImData().Load(path.Join(imDir, f.Name()))
-		op.CheckE(err)
+		im, _ := tp.NewImData().Load(path.Join(imDir, f.Name()))
 		p := path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1))
-		oFile, err := tp.NewFile(p)
-		op.CheckE(err)
+		oFile, _ := tp.NewFile(p)
 		defer oFile.Close()
-		op.CheckE(oFile.Read())
 		for j, l := range oFile.ReadLines() {
 			kt := tp.NewKITTI(cls, l)
 			id := kt.Cls.GetID(kt.Name)
@@ -98,15 +90,13 @@ func runCrop(root string, freq int, clsPath string) {
 			rct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
 			ob, rb, b, offset := kt.MakeROI(&im.Sz, rct, 0.25)
 			imSub := im.Crop(&rb.Rct)
-			//TODO: loading image by its suffix
-			p = path.Join(imDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".jpg", 1))
+			sfx := strings.Split(f.Name(), ".")[len(strings.Split(f.Name(), "."))-1]
+			p = path.Join(imDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".jpg", 1))
 			imSub.Save(p)
-			p = path.Join(lbDirROI, strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+".txt", 1))
-			tFile, err := tp.NewFile(p)
-			op.CheckE(err)
+			p = path.Join(lbDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".txt", 1))
+			tFile, _ := tp.NewFile(p)
 			defer tFile.Close()
-			err = tFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
-			op.CheckE(err)
+			_ = tFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
 			orient := [4][4]float64{
 				{0, 1, 0, 1},   // move up
 				{0, -1, 0, -1}, // move down
@@ -127,15 +117,14 @@ func runCrop(root string, freq int, clsPath string) {
 				imSub = im.Crop(&rb.Rct)
 				p := path.Join(
 					imDirROI,
-					strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1),
+					strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1),
 				)
 				imSub.Save(p)
 				p = path.Join(
 					lbDirROI,
-					strings.Replace(f.Name(), ".png", "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".txt", 1),
+					strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".txt", 1),
 				)
-				atFile, err := tp.NewFile(p)
-				op.CheckE(err)
+				atFile, _ := tp.NewFile(p)
 				defer atFile.Close()
 				atFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
 			}
@@ -155,19 +144,17 @@ Returns:
 	error
 */
 func runVis(root string) {
-	root, err := filepath.Abs(root)
-	op.CheckE(err)
+	root, _ = filepath.Abs(root)
 	imDir := path.Join(root, "images")
 	lbDir := path.Join(root, "labels")
-	fs, err := os.ReadDir(lbDir)
-	op.CheckE(err)
+	fs, _ := os.ReadDir(imDir)
 	for _, f := range fs {
-		imPath := path.Join(imDir, strings.Replace(f.Name(), ".txt", ".jpg", 1))
+		imPath := path.Join(imDir, f.Name())
 		im := tp.NewImData()
 		im.Load(imPath)
-		lbPath := path.Join(imDir, f.Name())
-		lb, err := tp.NewFile(lbPath)
-		op.CheckE(err)
+		sfx := strings.Split(f.Name(), ".")[len(strings.Split(f.Name(), "."))-1]
+		lbPath := path.Join(lbDir, strings.Replace(f.Name(), "."+sfx, ".txt", 1))
+		lb, _ := tp.NewFile(lbPath)
 		lbs := strings.Split(lb.Content, " ")
 		b := tp.NewBox(op.Str2int(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
 		b.ImSz = im.Sz
@@ -208,22 +195,18 @@ Args:
 
 Returns:
 
-	error
+	None
 */
 func runList(root string, cls []string) {
-	root, err := filepath.Abs(root)
-	op.CheckE(err)
+	root, _ = filepath.Abs(root)
 	txt := path.Join(root, "paths.txt")
-	file, err := os.OpenFile(txt, os.O_RDONLY|os.O_CREATE, 0755)
-	op.CheckE(err)
+	file, _ := os.OpenFile(txt, os.O_RDONLY|os.O_CREATE, 0755)
 	defer file.Close()
 	for i, c := range cls {
 		log.Println(i, c)
 		imgDir := path.Join(root, c, "images")
-		_, err := os.Stat(imgDir)
-		op.CheckE(err)
-		files, err := os.ReadDir(imgDir)
-		op.CheckE(err)
+		_, _ = os.Stat(imgDir)
+		files, _ := os.ReadDir(imgDir)
 		for _, f := range files {
 			path := path.Join(imgDir, f.Name())
 			file.WriteString(path + "\n")

@@ -1,50 +1,53 @@
 package ops
 
 import (
+	"log"
 	"strconv"
 )
 
+/*
+Convert string to int
+
+Args:
+
+	string: string data
+
+Returns:
+
+	int: int data
+*/
 func Str2int(str string) int {
-	/*Convert string to int
-
-	Args:
-		str(string): string data
-
-	Returns:
-		floatNum(float64): int data
-	*/
-
 	intNum, err := strconv.Atoi(str)
-	CheckE(err)
-
+	log.Println(err)
 	return intNum
 }
 
+/*
+Convert string to float64
+
+Args:
+
+	str(string): string data
+
+Returns:
+
+	intNum(float64): float64 data
+*/
 func Str2f64(str string) float64 {
-	/*Convert string to float64
-
-	Args:
-		str(string): string data
-
-	Returns:
-		intNum(float64): float64 data
-	*/
-
 	floatNum, err := strconv.ParseFloat(str, 64)
-	CheckE(err)
-
+	log.Println(err)
 	return floatNum
 }
 
+/*Convert float64 to string
+
+Args:
+	num(float64): float64 data
+
+Returns:
+	(string): string data
+*/
+
 func F642Str(num float64) string {
-	/*Convert float64 to string
-
-	Args:
-		num(float64): float64 data
-
-	Returns:
-		(string): string data
-	*/
-
 	return strconv.FormatFloat(num, 'g', -1, 64)
 }
