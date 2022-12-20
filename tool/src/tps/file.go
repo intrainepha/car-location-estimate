@@ -14,16 +14,19 @@ type File struct {
 	Content string
 }
 
+/*
+Open file, create a new one if it does not exist
+
+Args:
+
+	p(string): file path
+
+Returns:
+
+	(*File)
+	(error)
+*/
 func NewFile(p string) (*File, error) {
-	/*Open file, create a new one if it does not exist
-
-	Args:
-		p(string): file path
-
-	Returns:
-		(*File)
-		(error)
-	*/
 
 	d := path.Dir(p)
 	if !op.CheckDir(d) {
@@ -40,16 +43,19 @@ func NewFile(p string) (*File, error) {
 	return &File{Path: p, File: *f}, nil
 }
 
+/*
+Load file content, create a new one if it does not exist
+
+Args:
+
+	p(string): file path
+
+Returns:
+
+	(*File)
+	(error)
+*/
 func (t *File) Read() error {
-	/*Load file content, create a new one if it does not exist
-
-	Args:
-		p(string): file path
-
-	Returns:
-		(*File)
-		(error)
-	*/
 
 	bt, err := os.ReadFile(t.Path)
 	if err != nil {
@@ -60,31 +66,31 @@ func (t *File) Read() error {
 	return nil
 }
 
+/*Read lines from *.File file.
+
+Args:
+	None
+
+Returns:
+	([]string): line data from file
+*/
+
 func (t *File) ReadLines() []string {
-	/*Read lines from *.File file.
-
-	Args:
-		None
-
-	Returns:
-		([]string): line data from file
-	*/
-
 	t.Read()
 
 	return strings.Split(t.Content, "\n")
 }
 
+/*Write line date to file buffer
+
+Args:
+	None
+
+Returns:
+	(error)
+*/
+
 func (t *File) WriteLine(s string) error {
-	/*Write line date to file buffer
-
-	Args:
-		None
-
-	Returns:
-		(error)
-	*/
-
 	info, err := os.Stat(t.Path)
 	if err != nil {
 		return err
@@ -100,15 +106,15 @@ func (t *File) WriteLine(s string) error {
 	return nil
 }
 
+/*Close os.File buffer.
+
+Args:
+	None
+
+Returns:
+	None
+*/
+
 func (t *File) Close() {
-	/*Close os.File buffer.
-
-	Args:
-		None
-
-	Returns:
-		None
-	*/
-
 	t.File.Close()
 }

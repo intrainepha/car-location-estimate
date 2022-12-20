@@ -14,8 +14,8 @@ type Location struct {
 }
 
 type Offset struct {
-	X float64
-	Y float64
+	X int
+	Y int
 }
 
 type KITTI struct {
@@ -27,38 +27,41 @@ type KITTI struct {
 	Loc  Location
 }
 
+/*
+Location init function
+
+Args:
+
+	x(float64): x-distance in real world
+	y(float64): y-distance in real world
+
+Returns:
+
+	(*Location): pointer to a Location object
+*/
 func NewLoc(x float64, y float64) *Location {
-	/*Location init function
-
-	Args:
-		x(float64): x-distance in real world
-		y(float64): y-distance in real world
-
-	Returns:
-		(*Location): pointer to a Location object
-	*/
 
 	return &Location{X: x, Y: y}
 }
 
-func NewOffset(x, y float64) *Offset {
+func NewOffset(x, y int) *Offset {
 	return &Offset{X: x, Y: y}
 }
 
+/*Kitti init function
+
+Args:
+	l(string): line data from kitti label(*txt)
+
+Returns:
+	(*KITTI): pointer to KITTI object
+*/
+
 func NewKITTI(cls []string, l string) *KITTI {
-	/*Kitti init function
-
-	Args:
-		l(string): line data from kitti label(*txt)
-
-	Returns:
-		(*KITTI): pointer to KITTI object
-	*/
-
 	info := strings.Split(l, " ")
 	rct := *NewRect(
-		op.Str2f64(info[4]), op.Str2f64(info[5]),
-		op.Str2f64(info[6]), op.Str2f64(info[7]),
+		op.Str2int(info[4]), op.Str2int(info[5]),
+		op.Str2int(info[6]), op.Str2int(info[7]),
 	)
 
 	loc := *NewLoc(op.Str2f64(info[11]), op.Str2f64(info[13]))
@@ -72,15 +75,18 @@ func NewKITTI(cls []string, l string) *KITTI {
 	}
 }
 
+/*
+Kitti init function
+
+Args:
+
+	l(string): line data from kitti label(*txt)
+
+Returns:
+
+	(*KITTI): pointer to KITTI object
+*/
 func (k *KITTI) FilterOut() bool {
-	/*Kitti init function
-
-	Args:
-		l(string): line data from kitti label(*txt)
-
-	Returns:
-		(*KITTI): pointer to KITTI object
-	*/
 
 	if k.Cls.GetID(k.Name) == -1 {
 		//Class is not selected
@@ -102,25 +108,28 @@ func (k *KITTI) FilterOut() bool {
 	return false
 }
 
+/*
+Make ROI Box
+
+Args:
+
+	id(int): class ID
+	imsz(*Size): image width and height
+	r(*Rect): rectangle
+	s(float64): scale number
+
+Returns:
+
+	ob(*Box): original Box relative to origin image
+	rb(*Box): ROI Box relative to origin image
+	b(*Box): object Box relative to ROI
+*/
 func (k *KITTI) MakeROI(imsz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offset) {
-	/*Make ROI Box
-
-	Args:
-		id(int): class ID
-		imsz(*Size): image width and height
-		r(*Rect): rectangle
-		s(float64): scale number
-
-	Returns:
-		ob(*Box): original Box relative to origin image
-		rb(*Box): ROI Box relative to origin image
-		b(*Box): object Box relative to ROI
-	*/
 
 	id := k.Cls.GetID(k.Name)
 	ob := NewBox(id, r, imsz)
-	fmt.Println(ob.Sz.W, ob.Sz.H) // FIXME: size==[0,0]
-	off := NewOffset(ob.Sz.W*s, ob.Sz.H*s)
+	fmt.Println(ob.Sz.W, ob.Sz.H)
+	off := NewOffset(int(float64(ob.Sz.W)*s), int(float64(ob.Sz.H)*s))
 	rRct := NewRect(
 		ob.Rct.Xtl-off.X, ob.Rct.Ytl-off.Y,
 		ob.Rct.Xbr+off.X, ob.Rct.Ybr+off.Y,

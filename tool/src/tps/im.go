@@ -14,8 +14,8 @@ import (
 )
 
 type Size struct {
-	W float64
-	H float64
+	W int
+	H int
 }
 
 type ImData struct {
@@ -63,18 +63,13 @@ func (i *ImData) Load(p string) (*ImData, error) {
 	if err != nil {
 		return &ImData{}, err
 	}
-	i.Sz = *NewSize(float64(info.Width), float64(info.Height))
+	i.Sz = *NewSize(info.Width, info.Height)
 	im, _, err := image.Decode(bytes.NewReader(bt))
 	if err != nil {
 		return &ImData{}, err
 	}
-	// bounds := im.Bounds()
-	// rgba := image.NewRGBA(bounds)
-	// draw.Draw(rgba, bounds, im, bounds.Min, draw.Over)
-	// i.Im = rgba
 	i.Image = im
 	i.ToRGBA()
-
 	return i, nil
 }
 
@@ -129,7 +124,6 @@ func (i *ImData) Save(p string) error {
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -164,12 +158,11 @@ func (i *ImData) Crop(r *Rect) *ImData {
 	imD.Image = i.RGBA.SubImage(ir)
 	imD.Sz = *NewSize(r.Xbr-r.Xtl+1, r.Ybr-r.Ytl+1)
 	imD.ToRGBA()
-
 	return imD
 }
 
 func (i *ImData) DrawRect(r *Rect, c color.Color) {
-	shorter := math.Min(r.Xbr-r.Xtl, r.Ybr-r.Ytl)
+	shorter := math.Min(float64(r.Xbr-r.Xtl), float64(r.Ybr-r.Ytl))
 	bold := int(shorter / 200)
 	if bold < 1 {
 		bold = 1

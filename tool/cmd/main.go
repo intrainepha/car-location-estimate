@@ -15,20 +15,23 @@ import (
 	tp "github.com/intrainepha/car-location-estimation/tool/src/tps"
 )
 
+/*
+Transform data into ROI format:
+
+	| Class_ID | Bounding_box | Location | ROI Bounding_box |
+
+Args:
+
+	id(int): class ID
+	b(*tp.Box): object box that relative to ROI image
+	l(*tp.Location): x-distence and Y-distance in the real world
+	rb(*tp.Box): ROI box that relative to origin image
+
+Returns:
+
+	(string): Formed ROI label string
+*/
 func formROILabel(id int, b *tp.Box, l *tp.Location, rb *tp.Box) string {
-	/*Transform data into ROI format:
-		| Class_ID | Bounding_box | Location | ROI Bounding_box |
-
-	Args:
-		id(int): class ID
-		b(*tp.Box): object box that relative to ROI image
-		l(*tp.Location): x-distence and Y-distance in the real world
-		rb(*tp.Box): ROI box that relative to origin image
-
-	Returns:
-		(string): Formed ROI label string
-	*/
-
 	ss := []string{
 		strconv.Itoa(id),
 		op.F642Str(b.Scl.Xc), op.F642Str(b.Scl.Yc),
@@ -37,25 +40,28 @@ func formROILabel(id int, b *tp.Box, l *tp.Location, rb *tp.Box) string {
 		op.F642Str(rb.Scl.Xc), op.F642Str(rb.Scl.Yc),
 		op.F642Str(rb.Scl.W), op.F642Str(rb.Scl.H),
 	}
-
 	return strings.Join(ss, " ")
 }
 
+/*
+Crop Region of interest (ROI) from image with label formated in kitti approch.
+
+	root/
+		├──images
+		|   └──*.png
+		└──labels
+		└──*.txt
+
+Args:
+
+	root(string): Directory contains data files
+	freq(int): Frequence for filtering images
+
+Returns:
+
+	error
+*/
 func runCrop(root string, freq int, clsPath string) {
-	/*Crop Region of interest (ROI) from image with label formated in kitti approch.
-			root/
-				├──images
-				|   └──*.png
-				└──labels
-				└──*.txt
-
-	Args:
-		root(string): Directory contains data files
-		freq(int): Frequence for filtering images
-
-	Returns:
-		error
-	*/
 
 	root, err := filepath.Abs(root)
 	op.CheckE(err)
@@ -110,12 +116,12 @@ func runCrop(root string, freq int, clsPath string) {
 			for k, m := range orient {
 				rd := (400 + float64(rand.Intn(500))) / 1000 //random number in [0.4, 0.9]
 				step := [4]float64{
-					m[0] * offset.X * rd, m[1] * offset.Y * rd,
-					m[2] * offset.X * rd, m[3] * offset.Y * rd,
+					m[0] * float64(offset.X) * rd, m[1] * float64(offset.Y) * rd,
+					m[2] * float64(offset.X) * rd, m[3] * float64(offset.Y) * rd,
 				}
 				rct := tp.NewRect(
-					ob.Rct.Xtl+step[0], ob.Rct.Ytl+step[1],
-					ob.Rct.Xbr+step[2], ob.Rct.Ybr+step[3],
+					int(float64(ob.Rct.Xtl)+step[0]), int(float64(ob.Rct.Ytl)+step[1]),
+					int(float64(ob.Rct.Xbr)+step[2]), int(float64(ob.Rct.Ybr)+step[3]),
 				)
 				_, rb, b, _ := kt.MakeROI(&im.Sz, rct, 0.25)
 				imSub = im.Crop(&rb.Rct)
@@ -137,16 +143,18 @@ func runCrop(root string, freq int, clsPath string) {
 	}
 }
 
+/*
+Draw bounding box of object to image
+
+Args:
+
+	root(string): Directory contains data files
+
+Returns:
+
+	error
+*/
 func runVis(root string) {
-	/*Draw bounding box of object to image
-
-	Args:
-		root(string): Directory contains data files
-
-	Returns:
-		error
-	*/
-
 	root, err := filepath.Abs(root)
 	op.CheckE(err)
 	imDir := path.Join(root, "images")
@@ -179,28 +187,30 @@ func runVis(root string) {
 
 }
 
-func runList(root string, cls []string) {
-	/*Generate paths.txt file, which contains data paths with each
-	data path in one line, this file format is required by yolo-v3.
+/*
+Generate paths.txt file, which contains data paths with each
+data path in one line, this file format is required by yolo-v3.
 
-	Args:
-		root(string): Directory contains data files
-			root/
-				├──class_0
-				|   ├──data_file_0
-				|   ├── ...
-				|   └──data_file_n
+Args:
+
+	root(string): Directory contains data files
+		root/
+			├──class_0
+			|   ├──data_file_0
+			|   ├── ...
+			|   └──data_file_n
+			├── ...
+			└──class_n
+				├──data_file_0
 				├── ...
-				└──class_n
-					├──data_file_0
-					├── ...
-					└──data_file_n
-		cls([]string): classes you choose to generate
+				└──data_file_n
+	cls([]string): classes you choose to generate
 
-	Returns:
-		error
-	*/
+Returns:
 
+	error
+*/
+func runList(root string, cls []string) {
 	root, err := filepath.Abs(root)
 	op.CheckE(err)
 	txt := path.Join(root, "paths.txt")
