@@ -20,16 +20,15 @@ Open file, create a new one if it does not exist
 
 Args:
 
-	p(string): file path
+	p string: file path
 
 Returns:
 
-	(*File)
-	(error)
+	*File
 */
 func NewFile(p string) *File {
 	d := path.Dir(p)
-	if !op.CheckDir(d) {
+	if !op.Exists(d) {
 		err := os.MkdirAll(d, 0755)
 		if err != nil {
 			log.Panic(err)
@@ -47,12 +46,11 @@ Load file content, create a new one if it does not exist
 
 Args:
 
-	p(string): file path
+	p string: file path
 
 Returns:
 
-	(*File)
-	(error)
+	string: read content
 */
 func (t *File) Read() string {
 	bt, err := os.ReadFile(t.Path)
@@ -64,29 +62,33 @@ func (t *File) Read() string {
 	return t.Content
 }
 
-/*Read lines from *.File file.
+/*
+Read lines from *.File file.
 
 Args:
+
 	None
 
 Returns:
-	([]string): line data from file
-*/
 
+	[]string: line data from file
+*/
 func (t *File) ReadLines() []string {
 	t.Read()
 	return strings.Split(t.Content, "\n")
 }
 
-/*Write line date to file buffer
+/*
+Write line date to file buffer
 
 Args:
+
 	None
 
 Returns:
-	(error)
-*/
 
+	None
+*/
 func (t *File) WriteLine(s string) {
 	info, err := os.Stat(t.Path)
 	if err != nil {
@@ -101,15 +103,17 @@ func (t *File) WriteLine(s string) {
 	}
 }
 
-/*Close os.File buffer.
+/*
+Close os.File buffer.
 
 Args:
+
 	None
 
 Returns:
+
 	None
 */
-
 func (t *File) Close() {
 	t.File.Close()
 }

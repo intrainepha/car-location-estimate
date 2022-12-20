@@ -31,12 +31,12 @@ Location init function
 
 Args:
 
-	x(float64): x-distance in real world
-	y(float64): y-distance in real world
+	x float64: x-distance in real world
+	y float64: y-distance in real world
 
 Returns:
 
-	(*Location): pointer to a Location object
+	*Location: pointer to a Location object
 */
 func NewLoc(x float64, y float64) *Location {
 
@@ -47,15 +47,17 @@ func NewOffset(x, y int) *Offset {
 	return &Offset{X: x, Y: y}
 }
 
-/*Kitti init function
+/*
+Kitti init function
 
 Args:
-	l(string): line data from kitti label(*txt)
+
+	l string: line data from kitti label(*txt)
 
 Returns:
-	(*KITTI): pointer to KITTI object
-*/
 
+	*KITTI: pointer to KITTI object
+*/
 func NewKITTI(cls []string, l string) *KITTI {
 	info := strings.Split(l, " ")
 	rct := *NewRect(
@@ -83,11 +85,11 @@ Filter with conditions:
 
 Args:
 
-	l(string): line data from kitti label(*txt)
+	l string: line data from kitti label(*txt)
 
 Returns:
 
-	(*KITTI): pointer to KITTI object
+	bool: filtering status
 */
 func (k *KITTI) FilterOut() bool {
 	if k.Cls.GetID(k.Name) == -1 {
@@ -110,16 +112,17 @@ Make ROI Box
 
 Args:
 
-	id(int): class ID
-	imsz(*Size): image width and height
-	r(*Rect): rectangle
-	s(float64): scale number
+	id int: class ID
+	imsz *Size: image width and height
+	r *Rect: rectangle
+	s float64: scale number
 
 Returns:
 
-	ob(*Box): original Box relative to origin image
-	rb(*Box): ROI Box relative to origin image
-	b(*Box): object Box relative to ROI
+	ob *Box: original Box relative to origin image
+	rb *Box: ROI Box relative to origin image
+	b *Box: object Box relative to ROI
+	off *Offset: offset to ROI box
 */
 func (k *KITTI) MakeROI(imsz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offset) {
 	id := k.Cls.GetID(k.Name)

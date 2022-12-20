@@ -142,7 +142,7 @@ Returns:
 	*Image
 */
 func (i *ImData) Crop(r *Rect) *ImData {
-	ir := image.Rect(int(r.Xtl), int(r.Ytl), int(r.Xbr), int(r.Ybr))
+	ir := image.Rect(r.Xtl, r.Ytl, r.Xbr, r.Ybr)
 	imD := NewImData()
 	imD.Image = i.RGBA.SubImage(ir)
 	imD.Sz = *NewSize(r.Xbr-r.Xtl+1, r.Ybr-r.Ytl+1)
@@ -150,21 +150,35 @@ func (i *ImData) Crop(r *Rect) *ImData {
 	return imD
 }
 
+/*
+Draw rectangle on image
+
+Args:
+
+	r *Rect: rectangle info [Xtl, Ytl, Xbr, Ybr]
+	c color.Color: color setting
+
+Returns:
+
+	None
+*/
 func (i *ImData) DrawRect(r *Rect, c color.Color) {
 	shorter := math.Min(float64(r.Xbr-r.Xtl), float64(r.Ybr-r.Ytl))
-	bold := int(shorter / 200)
+	bold := int(shorter / 100)
 	if bold < 1 {
 		bold = 1
 	}
-	or := image.Rect(int(r.Xtl), int(r.Ytl), int(r.Xbr), int(r.Ybr))
-	ir := image.Rect(
-		int(r.Xtl)+bold, int(r.Ytl)+bold,
-		int(r.Xbr)-bold, int(r.Ybr)-bold,
-	)
+	bold = 4
+	or := image.Rect(r.Xtl, r.Ytl, r.Xbr, r.Ybr)
+	// ir := image.Rect(
+	// 	r.Xtl+bold, r.Ytl+bold,
+	// 	r.Xbr-bold, r.Ybr-bold,
+	// )
 	imSub := i.Crop(r)
-	for y := 0; y < int(imSub.Sz.H); y++ {
-		for x := 0; x < int(imSub.Sz.W); x++ {
-			if (y >= ir.Min.Y && y <= ir.Max.Y) || (x >= ir.Min.X && x <= ir.Max.X) {
+	for y := 0; y < imSub.Sz.H; y++ {
+		for x := 0; x < imSub.Sz.W; x++ {
+			// if (y >= ir.Min.Y && y <= ir.Max.Y) || (x >= ir.Min.X && x <= ir.Max.X) {
+			if (y <= bold && y >= imSub.Sz.H-bold) || (x <= bold && x >= imSub.Sz.W-bold) {
 				continue
 			}
 			imSub.RGBA.Set(x, y, c)

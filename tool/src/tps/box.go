@@ -19,14 +19,14 @@ ScaleBox init function
 
 Args:
 
-	x(float64): Central x in ratio
-	y(float64): Central y in ratio
-	w(float64): Width in ratio
-	h(float64): Height in ratio
+	x float64: Central x in ratio
+	y float64: Central y in ratio
+	w float64: Width in ratio
+	h float64: Height in ratio
 
 Returns:
 
-	(*ScaleBox): Pointer to a ScaleBox object
+	*ScaleBox: Pointer to a ScaleBox object
 */
 func NewScl(x float64, y float64, w float64, h float64) *ScaleBox {
 	return &ScaleBox{Xc: x, Yc: y, W: w, H: h}
@@ -45,12 +45,12 @@ Size init function
 
 Args:
 
-	w(int): Width
-	h(int): Height
+	w int: Width
+	h int: Height
 
 Returns:
 
-	(*Size): Pointer to a Size object
+	*Size: Pointer to a Size object
 */
 func NewSize(w int, h int) *Size {
 	return &Size{W: w, H: h}
@@ -61,14 +61,14 @@ Rect init function
 
 Args:
 
-	xtl(float64): x value of top-left point
-	ytl(float64): y value of top-left point
-	xbr(float64): x value of bottom-right point
-	ybr(float64): y value of bottom-right point
+	xtl float64: x value of top-left point
+	ytl float64: y value of top-left point
+	xbr float64: x value of bottom-right point
+	ybr float64: y value of bottom-right point
 
 Returns:
 
-	(*Rect): Pointer to a Rect object
+	*Rect: Pointer to a Rect object
 */
 func NewRect(xtl int, ytl int, xbr int, ybr int) *Rect {
 	return &Rect{Xtl: xtl, Ytl: ytl, Xbr: xbr, Ybr: ybr}
@@ -81,13 +81,13 @@ calculate box size and scaled box:
 
 Args:
 
-	id(int): Object class ID
-	r(*Rect): Rectangle represent a bounding box
-	s(*Sect): Image width and height
+	id int: Object class ID
+	r *Rect: Rectangle represent a bounding box
+	s *Sect: Image width and height
 
 Returns:
 
-	(*Box): Pointer to a Box object
+	*Box: Pointer to a Box object
 */
 func NewBox(id int, r *Rect, s *Size) *Box {
 	box := Box{ID: id, ImSz: *s, Rct: *r}
@@ -105,7 +105,7 @@ Args:
 
 Returns:
 
-	b(*Box): Box object after trimed
+	b *Box: Box object after trimed
 */
 func (b *Box) Trim() *Box {
 	if b.Rct.Xtl < 0 {
@@ -132,7 +132,7 @@ Args:
 
 Returns:
 
-	b(*Box): Box object after scaled
+	b *Box: Box object after scaled
 */
 func (b *Box) Scale() *Box {
 	b.Scl.Xc = (float64(b.Rct.Xtl) + float64(b.Rct.Xbr)) / 2 / float64(b.ImSz.W)
@@ -151,7 +151,7 @@ Args:
 
 Returns:
 
-	b(*Box): Box object after unscaled
+	b *Box: Box object after unscaled
 */
 func (b *Box) UnScale() *Box {
 	b.Sz.W = int(b.Scl.W * float64(b.ImSz.W))

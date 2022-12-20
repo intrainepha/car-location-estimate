@@ -29,11 +29,11 @@ Convert string to float64
 
 Args:
 
-	str(string): string data
+	str string: string data
 
 Returns:
 
-	intNum(float64): float64 data
+	intNum float64: float64 data
 */
 func Str2f64(str string) float64 {
 	floatNum, err := strconv.ParseFloat(str, 64)
@@ -43,15 +43,17 @@ func Str2f64(str string) float64 {
 	return floatNum
 }
 
-/*Convert float64 to string
+/*
+Convert float64 to string
 
 Args:
-	num(float64): float64 data
+
+	num float64: float64 data
 
 Returns:
-	(string): string data
-*/
 
+	string: string data
+*/
 func F642Str(num float64) string {
 	return strconv.FormatFloat(num, 'g', -1, 64)
 }

@@ -6,6 +6,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"image/color"
 	"log"
 	"math/rand"
@@ -26,14 +27,14 @@ Transform data into ROI format:
 
 Args:
 
-	id(int): class ID
-	b(*tp.Box): object box that relative to ROI image
-	l(*tp.Location): x-distence and Y-distance in the real world
-	rb(*tp.Box): ROI box that relative to origin image
+	id int: class ID
+	b *tp.Box: object box that relative to ROI image
+	l *tp.Location: x-distence and Y-distance in the real world
+	rb *tp.Box: ROI box that relative to origin image
 
 Returns:
 
-	(string): Formed ROI label string
+	string: Formed ROI label string
 */
 func formROILabel(id int, b *tp.Box, l *tp.Location, rb *tp.Box) string {
 	ss := []string{
@@ -58,12 +59,12 @@ Crop Region of interest (ROI) from image with label formated in kitti approch.
 
 Args:
 
-	root(string): Directory contains data files
-	freq(int): Frequence for filtering images
+	root string: Directory contains data files
+	freq int: Frequence for filtering images
 
 Returns:
 
-	error
+	None
 */
 func runCrop(root string, freq int, clsPath string) {
 	clsF := tp.NewFile(clsPath)
@@ -139,15 +140,17 @@ Draw bounding box of object to image
 
 Args:
 
-	root(string): Directory contains data files
+	root string: Directory contains data files
 
 Returns:
 
-	error
+	None
 */
 func runVis(root string) {
 	imDir := path.Join(root, "images")
 	lbDir := path.Join(root, "labels")
+	visDir := path.Join(root, "vis")
+	op.CleanDir(visDir)
 	fs, err := os.ReadDir(imDir)
 	if err != nil {
 		log.Panic(err)
@@ -167,13 +170,14 @@ func runVis(root string) {
 			op.Str2f64(lbs[3]), op.Str2f64(lbs[4]),
 		)
 		b.UnScale()
+		fmt.Println(b.Rct)
 		im.DrawRect(&b.Rct, color.RGBA{
 			A: 255,
 			R: 255,
-			G: 1,
-			B: 1,
+			G: 0,
+			B: 0,
 		})
-		im.Save(strings.Replace(imPath, "images", "vis", 1))
+		im.Save(path.Join(visDir, f.Name()))
 	}
 
 }
@@ -184,7 +188,7 @@ data path in one line, this file format is required by yolo-v3.
 
 Args:
 
-	root(string): Directory contains data files
+	root string: Directory contains data files
 		root/
 			├──class_0
 			|   ├──data_file_0
@@ -195,7 +199,7 @@ Args:
 				├──data_file_0
 				├── ...
 				└──data_file_n
-	cls([]string): classes you choose to generate
+	cls []string: classes you choose to generate
 
 Returns:
 
