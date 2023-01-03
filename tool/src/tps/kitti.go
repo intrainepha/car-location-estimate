@@ -115,7 +115,8 @@ Args:
 	id int: class ID
 	imsz *Size: image width and height
 	r *Rect: rectangle
-	s float64: scale number
+	t [4]float64: translation factors
+	s float64: scale factors
 
 Returns:
 
@@ -124,19 +125,23 @@ Returns:
 	b *Box: object Box relative to ROI
 	off *Offset: offset to ROI box
 */
-func (k *KITTI) MakeROI(imsz *Size, r *Rect, s float64) (*Box, *Box, *Box, *Offset) {
+func (k *KITTI) MakeROI(imsz *Size, r *Rect, t [4]float64, s float64) (*Box, *Box, *Box, *Offset) {
+	tRct := NewRect(
+		int(float64(r.Xtl)+t[0]), int(float64(r.Ytl)+t[1]),
+		int(float64(r.Xbr)+t[2]), int(float64(r.Ybr)+t[3]),
+	)
 	id := k.Cls.GetID(k.Name)
-	ob := NewBox(id, r, imsz)
+	ob := NewBox(id, tRct, imsz)
 	off := NewOffset(int(float64(ob.Sz.W)*s), int(float64(ob.Sz.H)*s))
 	rRct := NewRect(
 		ob.Rct.Xtl-off.X, ob.Rct.Ytl-off.Y,
 		ob.Rct.Xbr+off.X, ob.Rct.Ybr+off.Y,
 	)
 	rb := NewBox(id, rRct, imsz).Trim()
-	oRct := NewRect(
-		ob.Rct.Xtl-rb.Rct.Xtl, ob.Rct.Ytl-rb.Rct.Ytl,
-		ob.Rct.Xbr-rb.Rct.Xtl, ob.Rct.Ybr-rb.Rct.Ytl,
+	rct := NewRect(
+		r.Xtl-rb.Rct.Xtl, r.Ytl-rb.Rct.Ytl,
+		r.Xbr-rb.Rct.Xtl, r.Ybr-rb.Rct.Ytl,
 	)
-	b := NewBox(id, oRct, &rb.Sz).Trim().Scale()
+	b := NewBox(id, rct, &rb.Sz).Trim().Scale()
 	return ob, rb, b, off
 }

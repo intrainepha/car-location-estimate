@@ -2,7 +2,6 @@ package tps
 
 import (
 	"bytes"
-	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -169,7 +168,6 @@ func (i *ImData) DrawRect(r *Rect, c color.Color) {
 	if bold < 1 {
 		bold = 1
 	}
-	fmt.Println(bold)
 	or := image.Rect(r.Xtl, r.Ytl, r.Xbr, r.Ybr)
 	imSub := i.Crop(r)
 	min := imSub.Image.Bounds().Min

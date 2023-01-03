@@ -6,7 +6,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"image/color"
 	"log"
 	"math/rand"
@@ -91,7 +90,7 @@ func runCrop(root string, freq int, clsPath string) {
 				continue
 			}
 			rct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
-			ob, rb, b, offset := kt.MakeROI(&im.Sz, rct, 0.25)
+			ob, rb, b, offset := kt.MakeROI(&im.Sz, rct, [4]float64{}, 0.25)
 			imSub := im.Crop(&rb.Rct)
 			sfx := strings.Split(f.Name(), ".")[len(strings.Split(f.Name(), "."))-1]
 			p = path.Join(imDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".jpg", 1))
@@ -108,15 +107,15 @@ func runCrop(root string, freq int, clsPath string) {
 			}
 			for k, m := range orient {
 				rd := (400 + float64(rand.Intn(500))) / 1000 //random number in [0.4, 0.9]
-				step := [4]float64{
+				trans := [4]float64{
 					m[0] * float64(offset.X) * rd, m[1] * float64(offset.Y) * rd,
 					m[2] * float64(offset.X) * rd, m[3] * float64(offset.Y) * rd,
 				}
-				rct := tp.NewRect(
-					int(float64(ob.Rct.Xtl)+step[0]), int(float64(ob.Rct.Ytl)+step[1]),
-					int(float64(ob.Rct.Xbr)+step[2]), int(float64(ob.Rct.Ybr)+step[3]),
-				)
-				_, rb, b, _ := kt.MakeROI(&im.Sz, rct, 0.25)
+				// rct := tp.NewRect(
+				// 	int(float64(ob.Rct.Xtl)+trans[0]), int(float64(ob.Rct.Ytl)+trans[1]),
+				// 	int(float64(ob.Rct.Xbr)+trans[2]), int(float64(ob.Rct.Ybr)+trans[3]),
+				// )
+				_, rb, b, _ := kt.MakeROI(&im.Sz, &ob.Rct, trans, 0.25)
 				imSub = im.Crop(&rb.Rct)
 				p := path.Join(
 					imDirROI,
@@ -165,21 +164,12 @@ func runVis(root string) {
 		lbs := strings.Split(lb, " ")
 		b := tp.NewBox(op.Str2int(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
 		b.ImSz = im.Sz
-		fmt.Println(b.ImSz)
 		b.Scl = *tp.NewScl(
 			op.Str2f64(lbs[1]), op.Str2f64(lbs[2]),
 			op.Str2f64(lbs[3]), op.Str2f64(lbs[4]),
 		)
-		fmt.Println(b.Rct)
-		fmt.Println(b.Scl)
 		b.UnScale()
-		fmt.Println(b.Rct)
-		im.DrawRect(&b.Rct, color.RGBA{
-			A: 255,
-			R: 255,
-			G: 0,
-			B: 0,
-		})
+		im.DrawRect(&b.Rct, color.RGBA{A: 255, R: 0, G: 255, B: 0})
 		im.Save(path.Join(visDir, f.Name()))
 	}
 
