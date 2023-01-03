@@ -165,10 +165,13 @@ func runVis(root string) {
 		lbs := strings.Split(lb, " ")
 		b := tp.NewBox(op.Str2int(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
 		b.ImSz = im.Sz
+		fmt.Println(b.ImSz)
 		b.Scl = *tp.NewScl(
 			op.Str2f64(lbs[1]), op.Str2f64(lbs[2]),
 			op.Str2f64(lbs[3]), op.Str2f64(lbs[4]),
 		)
+		fmt.Println(b.Rct)
+		fmt.Println(b.Scl)
 		b.UnScale()
 		fmt.Println(b.Rct)
 		im.DrawRect(&b.Rct, color.RGBA{
