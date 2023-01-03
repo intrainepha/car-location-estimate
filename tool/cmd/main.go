@@ -106,15 +106,11 @@ func runCrop(root string, freq int, clsPath string) {
 				{1, 0, 1, 0},   // move right
 			}
 			for k, m := range orient {
-				rd := (400 + float64(rand.Intn(500))) / 1000 //random number in [0.4, 0.9]
+				rd := (400 + float64(rand.Intn(500))) / 1000 //random number in 0.4~0.9
 				trans := [4]float64{
 					m[0] * float64(offset.X) * rd, m[1] * float64(offset.Y) * rd,
 					m[2] * float64(offset.X) * rd, m[3] * float64(offset.Y) * rd,
 				}
-				// rct := tp.NewRect(
-				// 	int(float64(ob.Rct.Xtl)+trans[0]), int(float64(ob.Rct.Ytl)+trans[1]),
-				// 	int(float64(ob.Rct.Xbr)+trans[2]), int(float64(ob.Rct.Ybr)+trans[3]),
-				// )
 				_, rb, b, _ := kt.MakeROI(&im.Sz, &ob.Rct, trans, 0.25)
 				imSub = im.Crop(&rb.Rct)
 				p := path.Join(
