@@ -5,42 +5,32 @@ import (
 	"strings"
 
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
+	"golang.org/x/exp/constraints"
 )
 
-type Pt interface {
-	int | float64
+type number interface {
+	constraints.Integer | constraints.Float
 }
 
-type Point[T Pt] struct {
+type Point[T number] struct {
 	X, Y T
 }
 
 /*
-Location init function
+Point initializtion
 
 Args:
 
-	x float64: x-distance in real world
-	y float64: y-distance in real world
+	x int|float64: x value of a point
+	y int|float64: y value of a point
 
 Returns:
 
-	*Location: pointer to a Location object
+	*Point: pointer to a Point object
 */
-func NewPoint[T Pt](x, y T) *Point[T] {
-
+func NewPoint[T number](x, y T) *Point[T] {
 	return &Point[T]{X: x, Y: y}
 }
-
-// type Location struct {
-// 	X float64
-// 	Y float64
-// }
-
-// type Offset struct {
-// 	X int
-// 	Y int
-// }
 
 type KITTI struct {
 	Cls  Cls
@@ -51,29 +41,8 @@ type KITTI struct {
 	Loc  Point[float64]
 }
 
-// /*
-// Location init function
-
-// Args:
-
-// 	x float64: x-distance in real world
-// 	y float64: y-distance in real world
-
-// Returns:
-
-// 	*Location: pointer to a Location object
-// */
-// func NewLoc(x float64, y float64) *Location {
-
-// 	return &Location{X: x, Y: y}
-// }
-
-// func NewOffset(x, y int) *Offset {
-// 	return &Offset{X: x, Y: y}
-// }
-
 /*
-Kitti init function
+Kitti initialization
 
 Args:
 
@@ -90,7 +59,6 @@ func NewKITTI(cls []string, l string) *KITTI {
 		int(op.Stof(info[6])), int(op.Stof(info[7])),
 	)
 
-	// loc := *NewLoc(op.Stof(info[11]), op.Stof(info[13]))
 	loc := *NewPoint(op.Stof(info[11]), op.Stof(info[13]))
 	return &KITTI{
 		Cls:  *NewCls(cls),
@@ -149,7 +117,7 @@ Returns:
 	ob *Box: original Box relative to origin image
 	rb *Box: ROI Box relative to origin image
 	b *Box: object Box relative to ROI
-	off *Offset: offset to ROI box
+	off *Point: offset to ROI box
 */
 func (k *KITTI) MakeROI(imsz *Size, r *Rect, t [4]float64, s float64) (*Box, *Box, *Box, *Point[int]) {
 	tRct := NewRect(

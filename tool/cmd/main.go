@@ -1,7 +1,5 @@
 package main
 
-// TODO: Debug visualization
-// TODO: Timer
 // TODO: Goroutine
 
 import (
@@ -14,10 +12,16 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
 	tp "github.com/intrainepha/car-location-estimation/tool/src/tps"
 )
+
+func Timer(start time.Time, name string) {
+	elapsed := time.Since(start).Seconds()
+	log.Printf("elapsed:%s:%f(s)", name, elapsed)
+}
 
 /*
 Transform data into ROI format:
@@ -65,7 +69,8 @@ Returns:
 
 	None
 */
-func runCrop(root string, freq int, clsPath string) {
+func runCrop[A any](root string, freq int, clsPath string) {
+	defer Timer(time.Now(), "crop")
 	clsF := tp.NewFile(clsPath)
 	cls := clsF.ReadLines()
 	ds := path.Base(root)
@@ -142,6 +147,7 @@ Returns:
 	None
 */
 func runVis(root string) {
+	defer Timer(time.Now(), "vis")
 	imDir := path.Join(root, "images")
 	lbDir := path.Join(root, "labels")
 	visDir := path.Join(root, "vis")
@@ -195,6 +201,7 @@ Returns:
 	None
 */
 func runList(root string, cls []string) {
+	defer Timer(time.Now(), "list")
 	txt := path.Join(root, "paths.txt")
 	file, err := os.OpenFile(txt, os.O_RDONLY|os.O_CREATE, 0755)
 	if err != nil {
@@ -240,7 +247,7 @@ func main() {
 		cropCmd.Parse(os.Args[2:])
 		r, _ := filepath.Abs(*cropDir)
 		clsPath, _ := filepath.Abs(*cropCls)
-		runCrop(r, *cropFreq, clsPath)
+		runCrop[any](r, *cropFreq, clsPath)
 	case "vis":
 		visCmd.Parse(os.Args[2:])
 		r, _ := filepath.Abs(*visDir)
