@@ -7,23 +7,12 @@ import (
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
 )
 
-type Location struct {
-	X float64
-	Y float64
+type Pt interface {
+	int | float64
 }
 
-type Offset struct {
-	X int
-	Y int
-}
-
-type KITTI struct {
-	Cls  Cls
-	Name string
-	Trct float64
-	Ocld int
-	Rct  Rect
-	Loc  Location
+type Point[T Pt] struct {
+	X, Y T
 }
 
 /*
@@ -38,14 +27,50 @@ Returns:
 
 	*Location: pointer to a Location object
 */
-func NewLoc(x float64, y float64) *Location {
+func NewPoint[T Pt](x, y T) *Point[T] {
 
-	return &Location{X: x, Y: y}
+	return &Point[T]{X: x, Y: y}
 }
 
-func NewOffset(x, y int) *Offset {
-	return &Offset{X: x, Y: y}
+// type Location struct {
+// 	X float64
+// 	Y float64
+// }
+
+// type Offset struct {
+// 	X int
+// 	Y int
+// }
+
+type KITTI struct {
+	Cls  Cls
+	Name string
+	Trct float64
+	Ocld int
+	Rct  Rect
+	Loc  Point[float64]
 }
+
+// /*
+// Location init function
+
+// Args:
+
+// 	x float64: x-distance in real world
+// 	y float64: y-distance in real world
+
+// Returns:
+
+// 	*Location: pointer to a Location object
+// */
+// func NewLoc(x float64, y float64) *Location {
+
+// 	return &Location{X: x, Y: y}
+// }
+
+// func NewOffset(x, y int) *Offset {
+// 	return &Offset{X: x, Y: y}
+// }
 
 /*
 Kitti init function
@@ -61,16 +86,17 @@ Returns:
 func NewKITTI(cls []string, l string) *KITTI {
 	info := strings.Split(l, " ")
 	rct := *NewRect(
-		int(op.Str2f64(info[4])), int(op.Str2f64(info[5])),
-		int(op.Str2f64(info[6])), int(op.Str2f64(info[7])),
+		int(op.Stof(info[4])), int(op.Stof(info[5])),
+		int(op.Stof(info[6])), int(op.Stof(info[7])),
 	)
 
-	loc := *NewLoc(op.Str2f64(info[11]), op.Str2f64(info[13]))
+	// loc := *NewLoc(op.Stof(info[11]), op.Stof(info[13]))
+	loc := *NewPoint(op.Stof(info[11]), op.Stof(info[13]))
 	return &KITTI{
 		Cls:  *NewCls(cls),
 		Name: info[0],
-		Trct: op.Str2f64(info[1]),
-		Ocld: op.Str2int(info[2]),
+		Trct: op.Stof(info[1]),
+		Ocld: op.Stoi(info[2]),
 		Rct:  rct,
 		Loc:  loc,
 	}
@@ -125,14 +151,14 @@ Returns:
 	b *Box: object Box relative to ROI
 	off *Offset: offset to ROI box
 */
-func (k *KITTI) MakeROI(imsz *Size, r *Rect, t [4]float64, s float64) (*Box, *Box, *Box, *Offset) {
+func (k *KITTI) MakeROI(imsz *Size, r *Rect, t [4]float64, s float64) (*Box, *Box, *Box, *Point[int]) {
 	tRct := NewRect(
 		int(float64(r.Xtl)+t[0]), int(float64(r.Ytl)+t[1]),
 		int(float64(r.Xbr)+t[2]), int(float64(r.Ybr)+t[3]),
 	)
 	id := k.Cls.GetID(k.Name)
 	ob := NewBox(id, tRct, imsz)
-	off := NewOffset(int(float64(ob.Sz.W)*s), int(float64(ob.Sz.H)*s))
+	off := NewPoint(int(float64(ob.Sz.W)*s), int(float64(ob.Sz.H)*s))
 	rRct := NewRect(
 		ob.Rct.Xtl-off.X, ob.Rct.Ytl-off.Y,
 		ob.Rct.Xbr+off.X, ob.Rct.Ybr+off.Y,

@@ -35,14 +35,14 @@ Returns:
 
 	string: Formed ROI label string
 */
-func formROILabel(id int, b *tp.Box, l *tp.Location, rb *tp.Box) string {
+func formROILabel(id int, b *tp.Box, l *tp.Point[float64], rb *tp.Box) string {
 	ss := []string{
 		strconv.Itoa(id),
-		op.F642Str(b.Scl.Xc), op.F642Str(b.Scl.Yc),
-		op.F642Str(b.Scl.W), op.F642Str(b.Scl.H),
-		op.F642Str(l.Y), op.F642Str(l.X),
-		op.F642Str(rb.Scl.Xc), op.F642Str(rb.Scl.Yc),
-		op.F642Str(rb.Scl.W), op.F642Str(rb.Scl.H),
+		op.Ftos(b.Scl.Xc), op.Ftos(b.Scl.Yc),
+		op.Ftos(b.Scl.W), op.Ftos(b.Scl.H),
+		op.Ftos(l.Y), op.Ftos(l.X),
+		op.Ftos(rb.Scl.Xc), op.Ftos(rb.Scl.Yc),
+		op.Ftos(rb.Scl.W), op.Ftos(rb.Scl.H),
 	}
 	return strings.Join(ss, " ")
 }
@@ -158,11 +158,11 @@ func runVis(root string) {
 		lbPath := path.Join(lbDir, strings.Replace(f.Name(), "."+sfx, ".txt", 1))
 		lb := tp.NewFile(lbPath).Read()
 		lbs := strings.Split(lb, " ")
-		b := tp.NewBox(op.Str2int(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
+		b := tp.NewBox(op.Stoi(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
 		b.ImSz = im.Sz
 		b.Scl = *tp.NewScl(
-			op.Str2f64(lbs[1]), op.Str2f64(lbs[2]),
-			op.Str2f64(lbs[3]), op.Str2f64(lbs[4]),
+			op.Stof(lbs[1]), op.Stof(lbs[2]),
+			op.Stof(lbs[3]), op.Stof(lbs[4]),
 		)
 		b.UnScale()
 		im.DrawRect(&b.Rct, color.RGBA{A: 255, R: 0, G: 255, B: 0})

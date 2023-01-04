@@ -16,7 +16,7 @@ Returns:
 
 	int: int data
 */
-func Str2int(str string) int {
+func Stoi(str string) int {
 	intNum, err := strconv.Atoi(str)
 	if err != nil {
 		log.Panic(err)
@@ -35,7 +35,7 @@ Returns:
 
 	intNum float64: float64 data
 */
-func Str2f64(str string) float64 {
+func Stof(str string) float64 {
 	floatNum, err := strconv.ParseFloat(str, 64)
 	if err != nil {
 		log.Panic(err)
@@ -54,6 +54,6 @@ Returns:
 
 	string: string data
 */
-func F642Str(num float64) string {
+func Ftos(num float64) string {
 	return strconv.FormatFloat(num, 'g', -1, 64)
 }
