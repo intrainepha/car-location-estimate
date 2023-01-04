@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"image/color"
+	"io/fs"
 	"log"
 	"math/rand"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	op "github.com/intrainepha/car-location-estimation/tool/src/ops"
@@ -75,59 +77,65 @@ func runCrop(root string, freq int, clsPath string) {
 	lbDirROI := path.Join(strings.Replace(root, ds, ds+"_roi", 1), "labels")
 	op.CleanDir(imDirROI, lbDirROI)
 	files, _ := os.ReadDir(imDir)
+	var wg sync.WaitGroup
 	for i, f := range files {
 		if i%freq != 0 {
 			continue
 		}
-		im := tp.NewImData().Load(path.Join(imDir, f.Name()))
-		p := path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1))
-		oFile := tp.NewFile(p)
-		defer oFile.Close()
-		for j, l := range oFile.ReadLines() {
-			kt := tp.NewKITTI(cls, l)
-			id := kt.Cls.GetID(kt.Name)
-			if kt.FilterOut() {
-				continue
-			}
-			rct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
-			ob, rb, b, offset := kt.MakeROI(&im.Sz, rct, [4]float64{}, 0.25)
-			imSub := im.Crop(&rb.Rct)
-			sfx := strings.Split(f.Name(), ".")[len(strings.Split(f.Name(), "."))-1]
-			p = path.Join(imDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".jpg", 1))
-			imSub.Save(p)
-			p = path.Join(lbDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".txt", 1))
-			tFile := tp.NewFile(p)
-			defer tFile.Close()
-			tFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
-			orient := [4][4]float64{
-				{0, 1, 0, 1},   // move up
-				{0, -1, 0, -1}, // move down
-				{-1, 0, -1, 0}, // move left
-				{1, 0, 1, 0},   // move right
-			}
-			for k, m := range orient {
-				rd := (400 + float64(rand.Intn(500))) / 1000 //random number in 0.4~0.9
-				trans := [4]float64{
-					m[0] * float64(offset.X) * rd, m[1] * float64(offset.Y) * rd,
-					m[2] * float64(offset.X) * rd, m[3] * float64(offset.Y) * rd,
+		wg.Add(1)
+		go func(i int, f fs.DirEntry) {
+			im := tp.NewImData().Load(path.Join(imDir, f.Name()))
+			p := path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1))
+			oFile := tp.NewFile(p)
+			defer oFile.Close()
+			for j, l := range oFile.ReadLines() {
+				kt := tp.NewKITTI(cls, l)
+				id := kt.Cls.GetID(kt.Name)
+				if kt.FilterOut() {
+					continue
 				}
-				_, rb, b, _ := kt.MakeROI(&im.Sz, &ob.Rct, trans, 0.25)
-				imSub = im.Crop(&rb.Rct)
-				p := path.Join(
-					imDirROI,
-					strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1),
-				)
+				rct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
+				ob, rb, b, offset := kt.MakeROI(&im.Sz, rct, [4]float64{}, 0.25)
+				imSub := im.Crop(&rb.Rct)
+				sfx := strings.Split(f.Name(), ".")[len(strings.Split(f.Name(), "."))-1]
+				p = path.Join(imDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".jpg", 1))
 				imSub.Save(p)
-				p = path.Join(
-					lbDirROI,
-					strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".txt", 1),
-				)
-				atFile := tp.NewFile(p)
-				defer atFile.Close()
-				atFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
+				p = path.Join(lbDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".txt", 1))
+				tFile := tp.NewFile(p)
+				defer tFile.Close()
+				tFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
+				orient := [4][4]float64{
+					{0, 1, 0, 1},   // move up
+					{0, -1, 0, -1}, // move down
+					{-1, 0, -1, 0}, // move left
+					{1, 0, 1, 0},   // move right
+				}
+				for k, m := range orient {
+					rd := (400 + float64(rand.Intn(500))) / 1000 //random number in 0.4~0.9
+					trans := [4]float64{
+						m[0] * float64(offset.X) * rd, m[1] * float64(offset.Y) * rd,
+						m[2] * float64(offset.X) * rd, m[3] * float64(offset.Y) * rd,
+					}
+					_, rb, b, _ := kt.MakeROI(&im.Sz, &ob.Rct, trans, 0.25)
+					imSub = im.Crop(&rb.Rct)
+					p := path.Join(
+						imDirROI,
+						strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1),
+					)
+					imSub.Save(p)
+					p = path.Join(
+						lbDirROI,
+						strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".txt", 1),
+					)
+					atFile := tp.NewFile(p)
+					defer atFile.Close()
+					atFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
+				}
 			}
-		}
+			wg.Done()
+		}(i, f)
 	}
+	wg.Wait()
 }
 
 /*
@@ -151,25 +159,31 @@ func runVis(root string) {
 	if err != nil {
 		log.Panic(err)
 	}
+	var wg sync.WaitGroup
 	for _, f := range fs {
-		imPath := path.Join(imDir, f.Name())
-		im := tp.NewImData()
-		im.Load(imPath)
-		sfx := strings.Split(f.Name(), ".")[len(strings.Split(f.Name(), "."))-1]
-		lbPath := path.Join(lbDir, strings.Replace(f.Name(), "."+sfx, ".txt", 1))
-		lb := tp.NewFile(lbPath).Read()
-		lbs := strings.Split(lb, " ")
-		b := tp.NewBox(op.Stoi(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
-		b.ImSz = im.Sz
-		b.Scl = *tp.NewScl(
-			op.Stof(lbs[1]), op.Stof(lbs[2]),
-			op.Stof(lbs[3]), op.Stof(lbs[4]),
-		)
-		b.UnScale()
-		im.DrawRect(&b.Rct, color.RGBA{A: 255, R: 0, G: 255, B: 0})
-		im.Save(path.Join(visDir, f.Name()))
+		fname := f.Name()
+		wg.Add(1)
+		go func(f string) {
+			imPath := path.Join(imDir, fname)
+			im := tp.NewImData()
+			im.Load(imPath)
+			sfx := strings.Split(fname, ".")[len(strings.Split(fname, "."))-1]
+			lbPath := path.Join(lbDir, strings.Replace(fname, "."+sfx, ".txt", 1))
+			lb := tp.NewFile(lbPath).Read()
+			lbs := strings.Split(lb, " ")
+			b := tp.NewBox(op.Stoi(lbs[0]), tp.NewRect(0, 0, 0, 0), tp.NewSize(0, 0))
+			b.ImSz = im.Sz
+			b.Scl = *tp.NewScl(
+				op.Stof(lbs[1]), op.Stof(lbs[2]),
+				op.Stof(lbs[3]), op.Stof(lbs[4]),
+			)
+			b.UnScale()
+			im.DrawRect(&b.Rct, color.RGBA{A: 255, R: 0, G: 255, B: 0})
+			im.Save(path.Join(visDir, fname))
+			wg.Done()
+		}(fname)
 	}
-
+	wg.Wait()
 }
 
 /*
