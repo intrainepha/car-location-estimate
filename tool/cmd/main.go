@@ -77,6 +77,12 @@ func runCrop(root string, freq int, clsPath string) {
 	lbDirROI := path.Join(strings.Replace(root, ds, ds+"_roi", 1), "labels")
 	op.CleanDir(imDirROI, lbDirROI)
 	files, _ := os.ReadDir(imDir)
+	steps := [4][4]float64{
+		{0, 1, 0, 1},   // move up
+		{0, -1, 0, -1}, // move down
+		{-1, 0, -1, 0}, // move left
+		{1, 0, 1, 0},   // move right
+	}
 	var wg sync.WaitGroup
 	for i, f := range files {
 		if i%freq != 0 {
@@ -86,6 +92,7 @@ func runCrop(root string, freq int, clsPath string) {
 		go func(i int, f fs.DirEntry) {
 			im := tp.NewImData().Load(path.Join(imDir, f.Name()))
 			p := path.Join(lbDir, strings.Replace(f.Name(), ".png", ".txt", 1))
+			sfx := strings.Split(f.Name(), ".")[len(strings.Split(f.Name(), "."))-1]
 			oFile := tp.NewFile(p)
 			defer oFile.Close()
 			for j, l := range oFile.ReadLines() {
@@ -95,29 +102,22 @@ func runCrop(root string, freq int, clsPath string) {
 					continue
 				}
 				rct := tp.NewRect(kt.Rct.Xtl, kt.Rct.Ytl, kt.Rct.Xbr, kt.Rct.Ybr)
-				ob, rb, b, offset := kt.MakeROI(&im.Sz, rct, [4]float64{}, 0.25)
+				ob, rb, b, ofs := kt.MakeROI(&im.Sz, rct, [4]float64{}, 0.25)
 				imSub := im.Crop(&rb.Rct)
-				sfx := strings.Split(f.Name(), ".")[len(strings.Split(f.Name(), "."))-1]
 				p = path.Join(imDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".jpg", 1))
 				imSub.Save(p)
 				p = path.Join(lbDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".txt", 1))
 				tFile := tp.NewFile(p)
 				defer tFile.Close()
 				tFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
-				orient := [4][4]float64{
-					{0, 1, 0, 1},   // move up
-					{0, -1, 0, -1}, // move down
-					{-1, 0, -1, 0}, // move left
-					{1, 0, 1, 0},   // move right
-				}
-				for k, m := range orient {
+				for k, s := range steps {
 					rd := (400 + float64(rand.Intn(500))) / 1000 //random number in 0.4~0.9
 					trans := [4]float64{
-						m[0] * float64(offset.X) * rd, m[1] * float64(offset.Y) * rd,
-						m[2] * float64(offset.X) * rd, m[3] * float64(offset.Y) * rd,
+						s[0] * float64(ofs.X) * rd, s[1] * float64(ofs.Y) * rd,
+						s[2] * float64(ofs.X) * rd, s[3] * float64(ofs.Y) * rd,
 					}
 					_, rb, b, _ := kt.MakeROI(&im.Sz, &ob.Rct, trans, 0.25)
-					imSub = im.Crop(&rb.Rct)
+					imSub := im.Crop(&rb.Rct)
 					p := path.Join(
 						imDirROI,
 						strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+"_"+strconv.Itoa(k)+".jpg", 1),
@@ -217,16 +217,21 @@ func runList(root string, cls []string) {
 		log.Panic(err)
 	}
 	defer file.Close()
+	var wg sync.WaitGroup
 	for i, c := range cls {
-		log.Panic(i, c)
-		imgDir := path.Join(root, c, "images")
-		_, _ = os.Stat(imgDir)
-		files, _ := os.ReadDir(imgDir)
-		for _, f := range files {
-			path := path.Join(imgDir, f.Name())
-			file.WriteString(path + "\n")
-		}
+		wg.Add(1)
+		go func(i int, c string) {
+			imgDir := path.Join(root, c, "images")
+			_, _ = os.Stat(imgDir)
+			files, _ := os.ReadDir(imgDir)
+			for _, f := range files {
+				path := path.Join(imgDir, f.Name())
+				file.WriteString(path + "\n")
+			}
+			wg.Done()
+		}(i, c)
 	}
+	wg.Wait()
 }
 
 func main() {

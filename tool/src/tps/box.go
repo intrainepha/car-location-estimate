@@ -1,17 +1,11 @@
 package tps
 
 type Rect struct {
-	Xtl int
-	Ytl int
-	Xbr int
-	Ybr int
+	Xtl, Ytl, Xbr, Ybr int
 }
 
 type ScaleBox struct {
-	Xc float64
-	Yc float64
-	W  float64
-	H  float64
+	Xc, Yc, W, H float64
 }
 
 /*

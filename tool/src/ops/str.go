@@ -14,14 +14,14 @@ Args:
 
 Returns:
 
-	int: int data
+	iNum: int data
 */
 func Stoi(str string) int {
-	intNum, err := strconv.Atoi(str)
+	iNum, err := strconv.Atoi(str)
 	if err != nil {
 		log.Panic(err)
 	}
-	return intNum
+	return iNum
 }
 
 /*
@@ -33,14 +33,14 @@ Args:
 
 Returns:
 
-	intNum float64: float64 data
+	fNum float64: float64 data
 */
 func Stof(str string) float64 {
-	floatNum, err := strconv.ParseFloat(str, 64)
+	fNum, err := strconv.ParseFloat(str, 64)
 	if err != nil {
 		log.Panic(err)
 	}
-	return floatNum
+	return fNum
 }
 
 /*
