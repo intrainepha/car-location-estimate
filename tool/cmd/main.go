@@ -235,10 +235,6 @@ func runList(root string, cls []string) {
 }
 
 func main() {
-	listCmd := flag.NewFlagSet("list", flag.ExitOnError)
-	listDir := listCmd.String("dir", "", "Directory")
-	listCls := listCmd.String("cls", "", "Classes")
-
 	cropCmd := flag.NewFlagSet("crop", flag.ExitOnError)
 	cropDir := cropCmd.String("dir", "", "Directory")
 	cropFreq := cropCmd.Int("freq", 1, "Frequence")
@@ -246,6 +242,10 @@ func main() {
 
 	visCmd := flag.NewFlagSet("vis", flag.ExitOnError)
 	visDir := visCmd.String("dir", "", "Directory")
+
+	listCmd := flag.NewFlagSet("list", flag.ExitOnError)
+	listDir := listCmd.String("dir", "", "Directory")
+	listCls := listCmd.String("cls", "", "Classes")
 
 	if len(os.Args) < 2 {
 		log.Fatal("Expected subcommands!")

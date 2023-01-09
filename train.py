@@ -23,25 +23,26 @@ best = wdir + 'best.pt'
 results_file = 'results.txt'
 
 # Hyperparameters
-hyp = {'giou': 3.54,  # giou loss gain
-       'cls': 37.4,  # cls loss gain
-       'cls_pw': 1.0,  # cls BCELoss positive_weight
-
-       'obj': 64.3,  # obj loss gain (*=img_size/320 if img_size != 320)
-       'obj_pw': 1.0,  # obj BCELoss positive_weight
-       'iou_t': 0.20,  # iou training threshold
-       'lr0': 0.001,  # initial learning rate (SGD=5E-3, Adam=5E-4)
-       'lrf': 0.0005,  # final learning rate (with cos scheduler)
-       'momentum': 0.937,  # SGD momentum
-       'weight_decay': 0.01,  # optimizer weight decay
-       'fl_gamma': 0.0,  # focal loss gamma (efficientDet default is gamma=1.5)
-       'hsv_h': 0.0138,  # image HSV-Hue augmentation (fraction)
-       'hsv_s': 0.678,  # image HSV-Saturation augmentation (fraction)
-       'hsv_v': 0.36,  # image HSV-Value augmentation (fraction)
-       'degrees': 1.98 * 0,  # image rotation (+/- deg)
-       'translate': 0.05 * 0,  # image translation (+/- fraction)
-       'scale': 0.05 * 0,  # image scale (+/- gain)
-       'shear': 0.641 * 0}  # image shear (+/- deg)
+hyp = {
+    'giou': 3.54,  # giou loss gain
+    'cls': 37.4,  # cls loss gain
+    'cls_pw': 1.0,  # cls BCELoss positive_weight
+    'obj': 64.3,  # obj loss gain (*=img_size/320 if img_size != 320)
+    'obj_pw': 1.0,  # obj BCELoss positive_weight
+    'iou_t': 0.20,  # iou training threshold
+    'lr0': 0.001,  # initial learning rate (SGD=5E-3, Adam=5E-4)
+    'lrf': 0.0005,  # final learning rate (with cos scheduler)
+    'momentum': 0.937,  # SGD momentum
+    'weight_decay': 0.01,  # optimizer weight decay
+    'fl_gamma': 0.0,  # focal loss gamma (efficientDet default is gamma=1.5)
+    'hsv_h': 0.0138,  # image HSV-Hue augmentation (fraction)
+    'hsv_s': 0.678,  # image HSV-Saturation augmentation (fraction)
+    'hsv_v': 0.36,  # image HSV-Value augmentation (fraction)
+    'degrees': 1.98 * 0,  # image rotation (+/- deg)
+    'translate': 0.05 * 0,  # image translation (+/- fraction)
+    'scale': 0.05 * 0,  # image scale (+/- gain)
+    'shear': 0.641 * 0
+}  # image shear (+/- deg)
 
 # Overwrite hyp with hyp*.txt (optional)
 f = glob.glob('hyp*.txt')
@@ -398,8 +399,8 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=1)
     parser.add_argument('--batch-size', type=int, default=64)  # effective bs = batch_size * accumulate = 16 * 4 = 64
     parser.add_argument('--cfg', type=str, default='cfg/roidepth_0_0_2.cfg', help='*.cfg path')
-    # parser.add_argument('--data', type=str, default='data/roidepth-kitti.data', help='*.data path')
-    parser.add_argument('--data', type=str, default='data/roidepth-fv1xm.data', help='*.data path')
+    parser.add_argument('--data', type=str, default='data/roidepth-kitti.data', help='*.data path')
+    # parser.add_argument('--data', type=str, default='data/roidepth-fv1xm.data', help='*.data path')
     parser.add_argument('--multi-scale', action='store_true', help='adjust (67%% - 150%%) img_size every 10 batches')
     parser.add_argument('--img-size', nargs='+', type=int, default=[128, 128], help='[min_train, max-train, test]')
     parser.add_argument('--rect', action='store_true', default=False, help='rectangular training')
