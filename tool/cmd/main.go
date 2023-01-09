@@ -37,6 +37,7 @@ Returns:
 	string: Formed ROI label string
 */
 func formROILabel(id int, b *tp.Box, l *tp.Point[float64], rb *tp.Box) string {
+	// TODO:Scale l.Y and l.X
 	ss := []string{
 		strconv.Itoa(id),
 		op.Ftos(b.Scl.Xc), op.Ftos(b.Scl.Yc),
@@ -209,28 +210,36 @@ Returns:
 
 	None
 */
-func runList(root string, cls []string) {
+func runList(root string, clsPath string) {
 	defer op.Timer(time.Now(), "list")
+	// clsF := tp.NewFile(clsPath)
+	// cls := clsF.ReadLines()
 	txt := path.Join(root, "paths.txt")
-	file, err := os.OpenFile(txt, os.O_RDONLY|os.O_CREATE, 0755)
+	file, err := os.OpenFile(txt, os.O_WRONLY|os.O_CREATE, 0755)
 	if err != nil {
 		log.Panic(err)
 	}
 	defer file.Close()
 	var wg sync.WaitGroup
-	for i, c := range cls {
+	// for i, c := range cls {
+	// wg.Add(1)
+	// imgDir := path.Join(root, c, "images")
+	imgDir := path.Join(root, "images")
+	_, _ = os.Stat(imgDir)
+	files, _ := os.ReadDir(imgDir)
+	for _, f := range files {
 		wg.Add(1)
-		go func(i int, c string) {
-			imgDir := path.Join(root, c, "images")
-			_, _ = os.Stat(imgDir)
-			files, _ := os.ReadDir(imgDir)
-			for _, f := range files {
-				path := path.Join(imgDir, f.Name())
-				file.WriteString(path + "\n")
+		go func(f fs.DirEntry) {
+			path := path.Join(imgDir, f.Name())
+			// fmt.Println(path)
+			_, err := file.WriteString(path + "\n")
+			if err != nil {
+				log.Panic(err)
 			}
 			wg.Done()
-		}(i, c)
+		}(f)
 	}
+	// }
 	wg.Wait()
 }
 
@@ -252,11 +261,6 @@ func main() {
 	}
 
 	switch os.Args[1] {
-	case "list":
-		listCmd.Parse(os.Args[2:])
-		r, _ := filepath.Abs(*listDir)
-		classes := strings.Split(*listCls, ",")
-		runList(r, classes)
 	case "crop":
 		cropCmd.Parse(os.Args[2:])
 		r, _ := filepath.Abs(*cropDir)
@@ -266,6 +270,11 @@ func main() {
 		visCmd.Parse(os.Args[2:])
 		r, _ := filepath.Abs(*visDir)
 		runVis(r)
+	case "list":
+		listCmd.Parse(os.Args[2:])
+		r, _ := filepath.Abs(*listDir)
+		c, _ := filepath.Abs(*listCls)
+		runList(r, c)
 	default:
 		log.Panic("Expected subcommands")
 		os.Exit(1)
