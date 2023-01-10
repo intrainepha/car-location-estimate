@@ -36,13 +36,12 @@ Returns:
 
 	string: Formed ROI label string
 */
-func formROILabel(id int, b *tp.Box, l *tp.Point[float64], rb *tp.Box) string {
-	// TODO:Scale l.Y and l.X
+func normLabel(id int, b *tp.Box, l *tp.Point[float64], rb *tp.Box) string {
 	ss := []string{
 		strconv.Itoa(id),
 		op.Ftos(b.Scl.Xc), op.Ftos(b.Scl.Yc),
 		op.Ftos(b.Scl.W), op.Ftos(b.Scl.H),
-		op.Ftos(l.Y), op.Ftos(l.X),
+		op.Ftos(l.Y / tp.YRANGE), op.Ftos((l.X + tp.XRANGE) / (2 * tp.XRANGE)),
 		op.Ftos(rb.Scl.Xc), op.Ftos(rb.Scl.Yc),
 		op.Ftos(rb.Scl.W), op.Ftos(rb.Scl.H),
 	}
@@ -50,13 +49,13 @@ func formROILabel(id int, b *tp.Box, l *tp.Point[float64], rb *tp.Box) string {
 }
 
 /*
-Crop Region of interest (ROI) from image with label formated in kitti approch.
+Crop region of interest (ROI) from image with label formated in kitti approch.
 
 	root/
 		├──images
-		|   └──*.png
+		|   └──*.png/jpg
 		└──labels
-		└──*.txt
+			└──*.txt
 
 Args:
 
@@ -110,7 +109,7 @@ func runCrop(root string, freq int, clsPath string) {
 				p = path.Join(lbDirROI, strings.Replace(f.Name(), "."+sfx, "_"+strconv.Itoa(j)+".txt", 1))
 				tFile := tp.NewFile(p)
 				defer tFile.Close()
-				tFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
+				tFile.WriteLine(normLabel(id, b, &kt.Loc, rb))
 				for k, s := range steps {
 					rd := (400 + float64(rand.Intn(500))) / 1000 //random number in 0.4~0.9
 					trans := [4]float64{
@@ -130,7 +129,7 @@ func runCrop(root string, freq int, clsPath string) {
 					)
 					atFile := tp.NewFile(p)
 					defer atFile.Close()
-					atFile.WriteLine(formROILabel(id, b, &kt.Loc, rb))
+					atFile.WriteLine(normLabel(id, b, &kt.Loc, rb))
 				}
 			}
 			wg.Done()

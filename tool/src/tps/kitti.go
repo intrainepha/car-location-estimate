@@ -8,6 +8,9 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
+const XRANGE float64 = 8
+const YRANGE float64 = 80
+
 type number interface {
 	constraints.Integer | constraints.Float
 }
@@ -95,7 +98,7 @@ func (k *KITTI) FilterOut() bool {
 	if k.Ocld != 0 {
 		return true
 	}
-	if math.Abs(k.Loc.X) > 8 || k.Loc.Y < 0 || k.Loc.Y > 80 {
+	if math.Abs(k.Loc.X) > XRANGE || k.Loc.Y < 0 || k.Loc.Y > YRANGE {
 		return true
 	}
 	return false
@@ -131,7 +134,7 @@ func (k *KITTI) MakeROI(imsz *Size, r *Rect, t [4]float64, s float64) (*Box, *Bo
 		ob.Rct.Xtl-off.X, ob.Rct.Ytl-off.Y,
 		ob.Rct.Xbr+off.X, ob.Rct.Ybr+off.Y,
 	)
-	rb := NewBox(id, rRct, imsz).Trim()
+	rb := NewBox(id, rRct, imsz).Trim().Scale()
 	rct := NewRect(
 		r.Xtl-rb.Rct.Xtl, r.Ytl-rb.Rct.Ytl,
 		r.Xbr-rb.Rct.Xtl, r.Ybr-rb.Rct.Ytl,
