@@ -114,6 +114,8 @@ func (b *Box) Trim() *Box {
 	if b.Rct.Ybr >= b.ImSz.H {
 		b.Rct.Ybr = b.ImSz.H - 1
 	}
+	b.Sz.W = b.Rct.Xbr - b.Rct.Xtl + 1
+	b.Sz.H = b.Rct.Ybr - b.Rct.Ytl + 1
 	return b
 }
 

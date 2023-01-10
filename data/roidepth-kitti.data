@@ -1,4 +1,4 @@
 classes=3
 train=/home/huyu/dev/repo/car-location-estimation/dataset/kitti/train_roi/paths.txt
-valid=/home/huyu/dev/repo/car-location-estimation/dataset/kitti/val/paths.txt
+valid=/home/huyu/dev/repo/car-location-estimation/dataset/kitti/val_roi/paths.txt
 names=data/kitti_roi.names
