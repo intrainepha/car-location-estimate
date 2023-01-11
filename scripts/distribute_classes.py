@@ -75,4 +75,4 @@ if __name__ == "__main__":
 
     # DistributeClasses("/home/huyu/dataset/fv1xm/roi-gen2/RawLabel-bus/train", "/home/huyu/dataset/fv1xm/roi-gen2/train")
 
-    # DistributeClasses("/home/huyu/dataset/fv1xm/roi-gen2/RawLabel-truck/train", "/home/huyu/dataset/fv1xm/roi-gen2/train")
+    DistributeClasses("/home/huyu/dataset/fv1xm/roi-gen2/RawLabel-truck/train", "/home/huyu/dataset/fv1xm/roi-gen2/train")

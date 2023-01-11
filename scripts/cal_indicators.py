@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import ceil
 
-def CollectDepth(d_error, d_acc, tdepth, pdepth):
+def collect_depth(d_error, d_acc, tdepth, pdepth):
     de = tdepth-pdepth
     for i in list(range(0, 15, 1)):
         if i*10<tdepth<=(i+1)*10: # 0~10m
@@ -12,11 +12,11 @@ def CollectDepth(d_error, d_acc, tdepth, pdepth):
             break
     return 
 
-def normfun(x, mu, sigma):
+def norm_func(x, mu, sigma):
     pdf = np.exp(-((x - mu)**2) / (2* sigma**2)) / (sigma * np.sqrt(2*np.pi))
     return pdf
 
-def PlotDistribution(data:list, savePath:str):
+def plot_distribution(data:list, savePath:str):
     mean = np.mean(data)
     std = np.std(data)
     eage = ceil(max(abs(max(data)), abs(min(data))))
@@ -25,11 +25,17 @@ def PlotDistribution(data:list, savePath:str):
     plt.xlabel('Data Range(Total:{})'.format(str(len(data))))
     plt.ylabel('Probability')
 
-    numb, bins, patches = plt.hist(np.squeeze(np.asarray(data)), bins=eage*2,
-                                density=1, facecolor='green', rwidth=0.9 , alpha=0.6)
+    numb, _, _ = plt.hist(
+        np.squeeze(np.asarray(data)),
+        bins=eage*2,
+        density=1,
+        facecolor='green',
+        rwidth=0.9,
+        alpha=0.6
+    )
 
     x = np.arange(-eage, eage, 0.1)
-    y = normfun(x, mean, std)
+    y = norm_func(x, mean, std)
     plt.plot(x, y, '--', color='black')
 
     one_sigma = 0 
@@ -55,8 +61,8 @@ def PlotDistribution(data:list, savePath:str):
 
     return
 
-def CalDepthIndicators(errors, accs):
-    PlotDistribution(errors, 'DepthIndicators')
+def cal_depth_indicators(errors, accs):
+    plot_distribution(errors, 'DepthIndicators')
     de_acc = [np.mean(a) for a in accs] # get accuracy error in different range
     len_stats = [len(a) for a in accs]
     depth_stats = [str(len_stats)+'\n', str(de_acc)+'\n']

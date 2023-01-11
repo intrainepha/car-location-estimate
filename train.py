@@ -400,7 +400,6 @@ if __name__ == '__main__':
     parser.add_argument('--batch-size', type=int, default=64)  # effective bs = batch_size * accumulate = 16 * 4 = 64
     parser.add_argument('--cfg', type=str, default='cfg/roidepth_0_0_2.cfg', help='*.cfg path')
     parser.add_argument('--data', type=str, default='data/roidepth-kitti.data', help='*.data path')
-    # parser.add_argument('--data', type=str, default='data/roidepth-fv1xm.data', help='*.data path')
     parser.add_argument('--multi-scale', action='store_true', help='adjust (67%% - 150%%) img_size every 10 batches')
     parser.add_argument('--img-size', nargs='+', type=int, default=[128, 128], help='[min_train, max-train, test]')
     parser.add_argument('--rect', action='store_true', default=False, help='rectangular training')
