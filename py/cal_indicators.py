@@ -100,11 +100,11 @@ def cal_depth_indicators(errors, accs):
     Returns:
         TODO
     """
-    plot_distribution(errors, 'DepthIndicators')
+    plot_distribution(errors, 'indicators')
     de_acc = [np.mean(a) for a in accs] # get accuracy error in different range
     len_stats = [len(a) for a in accs]
     depth_stats = [str(len_stats)+'\n', str(de_acc)+'\n']
-    with open('DepthIndicators/depth-indicators.txt', 'w', encoding='utf-8') as f:
+    with open('indicators/depth-indicators.txt', 'w', encoding='utf-8') as f:
         f.writelines(depth_stats)
     return
     

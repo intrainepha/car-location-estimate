@@ -3,6 +3,7 @@
 datasets/
 dataset/
 runs/
+indicators/
 *.jpg
 results.*
  
