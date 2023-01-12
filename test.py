@@ -1,11 +1,9 @@
 import argparse
-import json
+# import json
 import numpy as np
 import absl.logging as log
 log.set_verbosity(log.INFO)
-
 from torch.utils.data import DataLoader
-
 from models import *
 from utils.datasets import *
 from utils.utils import *
@@ -27,6 +25,17 @@ def test(
     dataloader=None,
     multi_label=True
 ):
+    """TODO
+
+    Args:
+        TODO
+
+    Raises:
+        TODO
+
+    Returns:
+        TODO
+    """
     # Initialize/load model and set device
     if model is None:
         is_training = False
@@ -177,7 +186,7 @@ def test(
             #     depth_stats[4].append(de)
             #     de_acc[4].append(1-de/tdepth)
 
-            CollectDepth(d_error, d_acc, tdepth, pdepth)
+            collect_depth(d_error, d_acc, tdepth, pdepth)
         # Plot images
         if batch_i < 1:
             f = 'test_batch%g_gt.jpg' % batch_i  # filename
@@ -209,9 +218,8 @@ def test(
     #     f.writelines(depth_stats)
 
     cal_depth_indicators(d_error, d_acc)
-
     # Print results
-    pf = '%20s' + '%10.3g' * 6  # print format
+    pf = '%20s' + '%10.3g' * 6  
     print(pf % ('all', seen, nt.sum(), mp, mr, map, mf1))
     # Print results per class
     if verbose and nc > 1 and len(stats):
@@ -259,7 +267,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='test.py')
     parser.add_argument('--cfg', type=str, default='cfg/roidepth_0_0_2.cfg', help='*.cfg path')
     parser.add_argument('--data', type=str, default='data/roidepth-kitti.data', help='*.data path')
-    # parser.add_argument('--weights', type=str, default='weights/kitti-aug_e398_yl1.09_dl0.00208_0.995_0.779_0.973.pt', help='weights path')
     parser.add_argument('--weights', type=str, default='weights/last.pt', help='weights path')
     parser.add_argument('--batch-size', type=int, default=1, help='size of each image batch')
     parser.add_argument('--img-size', type=int, default=128, help='inference size (pixels)')
@@ -272,14 +279,14 @@ if __name__ == '__main__':
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     opt = parser.parse_args()
     opt.save_json = opt.save_json or any([x in opt.data for x in ['coco.data', 'coco2014.data', 'coco2017.data']])
-    opt.cfg = check_file(opt.cfg)  # check file
-    opt.data = check_file(opt.data)  # check file
+    opt.cfg = check_file(opt.cfg)  
+    opt.data = check_file(opt.data)  
     print(opt)
 
     Y_RANGE=100
 
     # task = 'test', 'study', 'benchmark'
-    if opt.task == 'test':  # (default) test normally
+    if opt.task == 'test':
         test(
             opt.cfg,
             opt.data,
@@ -292,12 +299,16 @@ if __name__ == '__main__':
             opt.single_cls,
             opt.augment
         )
-
     elif opt.task == 'benchmark':  # mAPs at 256-640 at conf 0.5 and 0.7
         y = []
-        for i in list(range(256, 640, 128)):  # img-size
+        for i in list(range(256, 640, 128)):
             for j in [0.6, 0.7]:  # iou-thres
                 t = time.time()
-                r = test(opt.cfg, opt.data, opt.weights, opt.batch_size, i, opt.conf_thres, j, opt.save_json)[0]
+                r = test(
+                    opt.cfg, opt.data, 
+                    opt.weights, opt.batch_size, 
+                    i, opt.conf_thres, 
+                    j, opt.save_json
+                )[0]
                 y.append(r + (time.time() - t,))
-        np.savetxt('benchmark.txt', y, fmt='%10.4g')  # y = np.loadtxt('study.txt')
+        np.savetxt('benchmark.txt', y, fmt='%10.4g') 
