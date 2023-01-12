@@ -3,16 +3,19 @@ import argparse
 import torch.distributed as dist
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
+import absl.logging as log
+log.set_verbosity(log.INFO)
 from torch.utils.tensorboard import SummaryWriter
 from models import *
 from utils.datasets import *
 from utils.utils import *
 
+
 mixed_precision = True
 try:  # Mixed precision training https://github.com/NVIDIA/apex
     from apex import amp
 except:
-    print('Apex recommended for faster mixed precision training: https://github.com/NVIDIA/apex')
+    log.info('Apex recommended for faster mixed precision training: https://github.com/NVIDIA/apex')
     mixed_precision = False  # not installed
 
 wdir = 'weights' + os.sep  # weights dir
@@ -45,13 +48,13 @@ hyp = {
 # Overwrite hyp with hyp*.txt (optional)
 f = glob.glob('hyp*.txt')
 if f:
-    print('Using %s' % f[0])
+    log.info('Using %s' % f[0])
     for k, v in zip(hyp.keys(), np.loadtxt(f[0])):
         hyp[k] = v
 
 # Print focal loss if gamma > 0
 if hyp['fl_gamma']:
-    print('Using FocalLoss(gamma=%g)' % hyp['fl_gamma'])
+    log.info('Using FocalLoss(gamma=%g)' % hyp['fl_gamma'])
 
 
 def train(hyp):
@@ -116,7 +119,7 @@ def train(hyp):
         optimizer = optim.SGD(pg0, lr=hyp['lr0'], momentum=hyp['momentum'], nesterov=True)
     optimizer.add_param_group({'params': pg1, 'weight_decay': hyp['weight_decay']})  # add pg1 with weight_decay
     optimizer.add_param_group({'params': pg2})  # add pg2 (biases)
-    print('Optimizer groups: %g .bias, %g Conv2d.weight, %g other' % (len(pg2), len(pg1), len(pg0)))
+    log.info('Optimizer groups: %g .bias, %g Conv2d.weight, %g other' % (len(pg2), len(pg1), len(pg0)))
     del pg0, pg1, pg2
     start_epoch = 0
     best_fitness = 0.0
@@ -143,7 +146,7 @@ def train(hyp):
         # epochs
         start_epoch = ckpt['epoch'] + 1
         if epochs < start_epoch:
-            print('%s has been trained for %g epochs. Fine-tuning for %g additional epochs.' %
+            log.info('%s has been trained for %g epochs. Fine-tuning for %g additional epochs.' %
                   (opt.weights, ckpt['epoch'], epochs))
             epochs += ckpt['epoch']  # finetune additional epochs
         del ckpt
@@ -225,9 +228,9 @@ def train(hyp):
     # torch.autograd.set_detect_anomaly(True)
     results = (0, 0, 0, 0, 0, 0, 0)  # 'P', 'R', 'mAP', 'F1', 'val GIoU', 'val Objectness', 'val Classification'
     t0 = time.time()
-    print('Image sizes %g - %g train, %g test' % (imgsz_min, imgsz_max, imgsz_test))
-    print('Using %g dataloader workers' % nw)
-    print('Starting training for %g epochs...' % epochs)
+    log.info('Image sizes %g - %g train, %g test' % (imgsz_min, imgsz_max, imgsz_test))
+    log.info('Using %g dataloader workers' % nw)
+    log.info('Starting training for %g epochs...' % epochs)
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         model.train()
         # Update image weights (optional)
@@ -236,7 +239,7 @@ def train(hyp):
             image_weights = labels_to_image_weights(dataset.labels, nc=nc, class_weights=w)
             dataset.indices = random.choices(range(dataset.n), weights=image_weights, k=dataset.n)  # rand weighted idx
         mloss = torch.zeros(5).to(device)  # mean losses.Modefied by huyu, original:"mloss = torch.zeros(4).to(device)  # mean losses"
-        print(('\n' + '%10s' * 9) % ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'depth', 'targets', 'img_size')) # print(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'targets', 'img_size'))
+        log.info(('\n' + '%10s' * 9) % ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'depth', 'targets', 'img_size')) # print(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'targets', 'img_size'))
         pbar = tqdm(enumerate(dataloader), total=nb)  # progress bar
         for i, (imgs, targets, paths, _, roi_info) in pbar:  # batch -------------------------------------------------------------Modefied by huyu, original:"for i, (imgs, targets, paths, _) in pbar:"
             ni = i + nb * epoch  # number integrated batches (since train start)
@@ -266,7 +269,7 @@ def train(hyp):
             # Loss
             loss, loss_items = compute_loss(pred, pred_depth, targets, model)# Modefied by huyu, original:"loss, loss_items = compute_loss(pred, targets, model)"
             if not torch.isfinite(loss):
-                print('WARNING: non-finite loss, ending training ', loss_items)
+                log.info('WARNING: non-finite loss, ending training ', loss_items)
                 return results
             # Backward
             loss *= batch_size / 64  # scale loss
@@ -338,7 +341,7 @@ def train(hyp):
             torch.save(ckpt, last)
             if (best_fitness == fi) and not final_epoch:
                 torch.save(ckpt, best)
-                print('----------------------------%s-save-as-best------------------------'%str(epoch))
+                log.info('----------------------------%s-save-as-best------------------------'%str(epoch))
             del ckpt
         # end epoch ----------------------------------------------------------------------------------------------------
     # end training
@@ -355,13 +358,13 @@ def train(hyp):
                 os.system('gsutil cp %s gs://%s/weights' % (f2, opt.bucket)) if opt.bucket and ispt else None  # upload
     if not opt.evolve:
         plot_results()  # save as results.png
-    print('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
+    log.info('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
     dist.destroy_process_group() if torch.cuda.device_count() > 1 else None
     torch.cuda.empty_cache()
     return results
 
 if __name__ == '__main__':
-    print(torch.version.cuda)
+    log.info(torch.version.cuda)
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs', type=int, default=1)
     parser.add_argument('--batch-size', type=int, default=64)  # effective bs = batch_size * accumulate = 16 * 4 = 64
@@ -387,7 +390,7 @@ if __name__ == '__main__':
     check_git_status()
     opt.cfg = check_file(opt.cfg)  # check file
     opt.data = check_file(opt.data)  # check file
-    print(opt)
+    log.info(opt)
     opt.img_size.extend([opt.img_size[-1]] * (3 - len(opt.img_size)))  # extend to 3 sizes (min, max, test)
     device = torch_utils.select_device(opt.device, apex=mixed_precision, batch_size=opt.batch_size)
     if device.type == 'cpu':
@@ -396,7 +399,7 @@ if __name__ == '__main__':
     # hyp['obj'] *= opt.img_size[0] / 320.
     tb_writer = None
     if not opt.evolve:  # Train normally
-        print('Start Tensorboard with "tensorboard --logdir=runs", view at http://localhost:6006/')
+        log.info('Start Tensorboard with "tensorboard --logdir=runs", view at http://localhost:6006/')
         tb_writer = SummaryWriter(comment=opt.name)
         train(hyp)  # train normally
     else:  # Evolve hyperparameters (optional)

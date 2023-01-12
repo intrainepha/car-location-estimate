@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from models import *
 from utils.datasets import *
 from utils.utils import *
-from scripts.cal_indicators import *
+from cal_indicators import *
 
 
 def test(
@@ -220,20 +220,20 @@ def test(
     cal_depth_indicators(d_error, d_acc)
     # Print results
     pf = '%20s' + '%10.3g' * 6  
-    print(pf % ('all', seen, nt.sum(), mp, mr, map, mf1))
+    log.info(pf % ('all', seen, nt.sum(), mp, mr, map, mf1))
     # Print results per class
     if verbose and nc > 1 and len(stats):
         pfc = '%20s' + '%10.3g' * 6  # print format
         for i, c in enumerate(ap_class):
-            print(pfc % (names[c], seen, nt[c], p[i], r[i], ap[i], f1[i]))
+            log.info(pfc % (names[c], seen, nt[c], p[i], r[i], ap[i], f1[i]))
     # Print speeds
     if verbose or save_json:
         t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (imgsz, imgsz, batch_size)  # tuple
-        print('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
+        log.info('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
 
     # # Save JSON
     # if save_json and map and len(jdict):
-    #     print('\nCOCO mAP with pycocotools...')
+    #     log.info('\nCOCO mAP with pycocotools...')
     #     imgIds = [int(Path(x).stem.split('_')[-1]) for x in dataloader.dataset.img_files]
     #     with open('results.json', 'w') as file:
     #         json.dump(jdict, file)
@@ -253,7 +253,7 @@ def test(
     #         cocoEval.summarize()
     #         # mf1, map = cocoEval.stats[:2]  # update to pycocotools results (mAP@0.5:0.95, mAP@0.5)
     #     except:
-    #         print('WARNING: pycocotools must be installed with numpy==1.17 to run correctly. '
+    #         log.info('WARNING: pycocotools must be installed with numpy==1.17 to run correctly. '
     #               'See https://github.com/cocodataset/cocoapi/issues/356')
 
     # Return results
@@ -281,7 +281,7 @@ if __name__ == '__main__':
     opt.save_json = opt.save_json or any([x in opt.data for x in ['coco.data', 'coco2014.data', 'coco2017.data']])
     opt.cfg = check_file(opt.cfg)  
     opt.data = check_file(opt.data)  
-    print(opt)
+    log.info(opt)
 
     Y_RANGE=100
 
