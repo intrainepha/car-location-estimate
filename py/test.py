@@ -36,21 +36,17 @@ def test(
     Returns:
         TODO
     """
-    # Initialize/load model and set device
     if model is None:
         is_training = False
         device = torch_utils.select_device(opt.device, batch_size=batch_size)
         verbose = opt.task == 'test'
-        # Remove previous
         for f in glob.glob('test_batch*.jpg'):
             os.remove(f)
-        # Initialize model
         model = Darknet(cfg, imgsz)
-        # Load weights
         attempt_download(weights)
-        if weights.endswith('.pt'):  # pytorch format
+        if weights.endswith('.pt'):  
             model.load_state_dict(torch.load(weights, map_location=device)['model'])
-        else:  # darknet format
+        else:  
             load_darknet_weights(model, weights)
         # Fuse
         model.fuse()
@@ -59,13 +55,13 @@ def test(
             model = nn.DataParallel(model)
     else:  # called by train.py
         is_training = True
-        device = next(model.parameters()).device  # get model device
+        device = next(model.parameters()).device  
         verbose = False
     # Configure run
     data = parse_data_cfg(data)
-    nc = 1 if single_cls else int(data['classes'])  # number of classes
-    path = data['valid']  # path to test images
-    names = load_classes(data['names'])  # class names
+    nc = 1 if single_cls else int(data['classes'])  
+    path = data['valid']  
+    names = load_classes(data['names'])  
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
     iouv = iouv[0].view(1)  # comment for mAP@0.5:0.95
     iouv = torch.Tensor([0.35]).to(device) # Added by huyu
@@ -262,7 +258,6 @@ def test(
         maps[c] = ap[i]
     return (mp, mr, map, mf1, *(loss.cpu() / len(dataloader)).tolist()), maps
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='test.py')
     parser.add_argument('--cfg', type=str, default='cfg/roidepth_0_0_2.cfg', help='*.cfg path')
@@ -282,9 +277,7 @@ if __name__ == '__main__':
     opt.cfg = check_file(opt.cfg)  
     opt.data = check_file(opt.data)  
     log.info(opt)
-
     Y_RANGE=100
-
     # task = 'test', 'study', 'benchmark'
     if opt.task == 'test':
         test(
