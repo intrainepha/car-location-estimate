@@ -4,6 +4,7 @@ datasets/
 dataset/
 runs/
 indicators/
+docs/
 *.jpg
 results.*
  

@@ -1,8 +1,9 @@
 import argparse
-# import numpy as np
 from models import *  # set ONNX_EXPORT in models.py
 from utils.datasets import *
 from utils.utils import *
+import absl.logging as log
+log.set_verbosity(log.INFO)
 
 
 def detect(save_img=False):
@@ -17,14 +18,16 @@ def detect(save_img=False):
     Returns:
         TODO
     """
-    imgsz = (320, 192) if ONNX_EXPORT else opt.img_size  # (320, 192) or (416, 256) or (608, 352) for (height, width)
-    out, source, weights, half, view_img, save_txt = opt.output, opt.source, opt.weights, opt.half, opt.view_img, opt.save_txt
-    webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
+    imgsz = (320, 192) if ONNX_EXPORT else opt.img_size  
+    out, source, weights, half, view_img, save_txt = \
+        opt.output, opt.source, opt.weights, opt.half, opt.view_img, opt.save_txt
+    webcam = source == '0' or source.startswith('rtsp') \
+        or source.startswith('http') or source.endswith('.txt')
     # Initialize
     device = torch_utils.select_device(device='cpu' if ONNX_EXPORT else opt.device)
     if os.path.exists(out):
-        shutil.rmtree(out)  # delete output folder
-    os.makedirs(out)  # make new output folder
+        shutil.rmtree(out)  
+    os.makedirs(out)  
     # Initialize model
     model = Darknet(opt.cfg, imgsz)
     # Load weights
@@ -36,14 +39,10 @@ def detect(save_img=False):
     # Second-stage classifier
     classify = False
     if classify:
-        modelc = torch_utils.load_classifier(name='resnet101', n=2)  # initialize
-        modelc.load_state_dict(torch.load('weights/resnet101.pt', map_location=device)['model'])  # load weights
+        modelc = torch_utils.load_classifier(name='resnet101', n=2)
+        modelc.load_state_dict(torch.load('weights/resnet101.pt', map_location=device)['model'])
         modelc.to(device).eval()
-    # Eval mode
     model.to(device).eval()
-    # Fuse Conv2d + BatchNorm2d layers
-    # model.fuse()
-    # Export mode
     if ONNX_EXPORT:
         model.fuse()
         img = torch.zeros((1, 3) + imgsz)  # (1, 3, 320, 192)
@@ -54,7 +53,7 @@ def detect(save_img=False):
         import onnx
         model = onnx.load(f)  # Load the ONNX model
         onnx.checker.check_model(model)  # Check that the IR is well formed
-        print(onnx.helper.printable_graph(model.graph))  # Print a human readable representation of the graph
+        log.info(onnx.helper.printable_graph(model.graph))  # Print a human readable representation of the graph
         return
     # Half precision
     half = half and device.type != 'cpu'  # half precision only supported on CUDA
@@ -132,7 +131,7 @@ def detect(save_img=False):
                         img_show, xyxy_show = resieze_img_and_box(im0, xyxy, minPix=100) # Added by huyu
                         plot_one_box(xyxy_show, img_show, label=label, color=colors[int(cls)])
             # Print time (inference + NMS)
-            print('%sDone. (%.3fs)' % (s, t2 - t1))
+            log.info('%sDone. (%.3fs)' % (s, t2 - t1))
             # Stream results
             if view_img:
                 cv2.imshow(p, img_show)
@@ -165,23 +164,19 @@ def detect(save_img=False):
                         vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (w, h))
                     vid_writer.write(im0)
     if save_txt or save_img:
-        print('Results saved to %s' % os.getcwd() + os.sep + out)
+        log.info('Results saved to %s' % os.getcwd() + os.sep + out)
         if platform == 'darwin':  # MacOS
             os.system('open ' + save_path)
-    print('Done. (%.3fs)' % (time.time() - t0))
-    print(badCnt)
+    log.info('Done. (%.3fs)' % (time.time() - t0))
+    log.info(badCnt)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='cfg/roidepth_0_0_2.cfg', help='*.cfg path')
     parser.add_argument('--names', type=str, default='data/cls5.names', help='*.names path')
-    # parser.add_argument('--weights', type=str, default='weights/kitti-aug_e398_yl1.09_dl0.00208_0.995_0.779_0.973.pt', help='weights path')
-    # parser.add_argument('--source', type=str, default='/home/huyu/dataset/AGC-FVM/roidepth/kitti/valid/images', help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--weights', type=str, default='weights/last.pt', help='weights path')
-    # parser.add_argument('--source', type=str, default='/home/huyu/dataset/fv1xm/roi-gen2/test/car/images', help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--source', type=str, default='/home/huyu/dataset/fv1xm/roi-boyue-test-tmp/car/images', help='source')  # input file/folder, 0 for webcam
-    # parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--output', type=str, default='boyue-output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=128, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.3, help='object confidence threshold')
@@ -197,7 +192,7 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     opt.cfg = check_file(opt.cfg)  # check file
     opt.names = check_file(opt.names)  # check file
-    print(opt)
+    log.info(opt)
     Y_RANGE = 100
     with torch.no_grad():
         detect()
