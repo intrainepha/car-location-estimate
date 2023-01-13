@@ -70,11 +70,13 @@ def test(
     if dataloader is None:
         dataset = ImagesAndLabelsLoader(path, imgsz, batch_size, single_cls=opt.single_cls, pad=0.5)
         batch_size = min(batch_size, len(dataset))
-        dataloader = DataLoader(dataset,
-                                batch_size=batch_size,
-                                num_workers=min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8]),
-                                pin_memory=True,
-                                collate_fn=dataset.collate_fn)
+        dataloader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            num_workers=min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8]),
+            pin_memory=True,
+            collate_fn=dataset.collate_fn
+        )
     seen = 0
     model.eval()
     _ = model(torch.zeros((1, 3, imgsz, imgsz), device=device)) if device.type != 'cpu' else None  # run once
@@ -102,7 +104,9 @@ def test(
                 loss += compute_loss(train_out, roidepth_out, targets, model)[1][:3]  # GIoU, obj, cls
             # Run NMS
             t = torch_utils.time_synchronized()
-            output = non_max_suppression(inf_out, conf_thres=conf_thres, iou_thres=iou_thres, multi_label=multi_label)
+            output = non_max_suppression(
+                inf_out, conf_thres=conf_thres, iou_thres=iou_thres, multi_label=multi_label
+            )
             t1 += torch_utils.time_synchronized() - t
         # Statistics per image
         for si, pred in enumerate(output):
@@ -112,7 +116,9 @@ def test(
             seen += 1
             if pred is None:
                 if nl:
-                    stats.append((torch.zeros(0, niou, dtype=torch.bool), torch.Tensor(), torch.Tensor(), tcls))
+                    stats.append(
+                        (torch.zeros(0, niou, dtype=torch.bool), torch.Tensor(), torch.Tensor(), tcls)
+                    )
                 continue
             # Append to text file
             # with open('test.txt', 'a') as file:
@@ -164,7 +170,9 @@ def test(
             stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
             # Depth stats for eval, adaption.
             tdepth = labels[:,5]
-            pdepth, tdepth = np.squeeze(roidepth_out.cpu().numpy())*Y_RANGE, tdepth.cpu().numpy()*Y_RANGE
+            pdepth, tdepth = np.squeeze(
+                roidepth_out.cpu().numpy()
+            )*Y_RANGE, tdepth.cpu().numpy()*Y_RANGE
             # de = abs(tdepth-pdepth)
             # if 1<tdepth<=10: # 0~10m
             #     depth_stats[0].append(de)
@@ -188,7 +196,9 @@ def test(
             f = 'test_batch%g_gt.jpg' % batch_i  # filename
             plot_images(imgs, targets, paths=paths, names=names, fname=f)  # ground truth
             f = 'test_batch%g_pred.jpg' % batch_i
-            plot_images(imgs, output_to_target(output, width, height), paths=paths, names=names, fname=f)  # predictions
+            plot_images(
+                imgs, output_to_target(output, width, height), paths=paths, names=names, fname=f
+            )  # predictions
     # Compute statistics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
     if len(stats):

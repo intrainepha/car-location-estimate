@@ -1,9 +1,10 @@
-import os, math, argparse, glob, time, random, tqdm
+import os, math, argparse, glob, time, random
 import numpy as np  
 import torch
 import torch.distributed as dist
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
+from tqdm import tqdm
 from utils import torch_utils
 import test
 from torch.utils.tensorboard import SummaryWriter
@@ -81,8 +82,8 @@ def train(hyp: Dict[str, float]):
     weights = opt.weights  
     imgsz_min, imgsz_max, imgsz_test = opt.img_size  
     gs = 32  # (pixels) grid size
-    assert math.fmod(imgsz_min, gs) == \
-        0, '--img-size %g must be a %g-multiple' % (imgsz_min, gs)
+    assert math.fmod(imgsz_min, gs) == 0, \
+        '--img-size %g must be a %g-multiple' % (imgsz_min, gs)
     opt.multi_scale |= imgsz_min != imgsz_max  
     if opt.multi_scale:
         if imgsz_min == imgsz_max:
@@ -316,16 +317,20 @@ def train(hyp: Dict[str, float]):
         ema.update_attr(model)
         final_epoch = epoch + 1 == epochs
         if not opt.notest or final_epoch:  # Calculate mAP
-            is_coco = any([x in data for x in ['coco.data', 'coco2014.data', 'coco2017.data']]) and model.nc == 80
-            results, maps = test.test(cfg,
-                                      data,
-                                      batch_size=batch_size,
-                                      imgsz=imgsz_test,
-                                      model=ema.ema,
-                                      save_json=final_epoch and is_coco,
-                                      single_cls=opt.single_cls,
-                                      dataloader=testloader,
-                                      multi_label=ni > n_burn)
+            is_coco = any(
+                [x in data for x in ['coco.data', 'coco2014.data', 'coco2017.data']]
+            ) and model.nc == 80
+            results, maps = test.test(
+                cfg,
+                data,
+                batch_size=batch_size,
+                imgsz=imgsz_test,
+                model=ema.ema,
+                save_json=final_epoch and is_coco,
+                single_cls=opt.single_cls,
+                dataloader=testloader,
+                multi_label=ni > n_burn
+            )
         # Write
         with open(RES_FILE, 'a') as f:
             f.write(s + '%10.3g' * 7 % results + '\n')  # P, R, mAP, F1, test_losses=(GIoU, obj, cls)
@@ -350,11 +355,13 @@ def train(hyp: Dict[str, float]):
         save = (not opt.nosave) or (final_epoch and not opt.evolve)
         if save:
             with open(RES_FILE, 'r') as f:  # create checkpoint
-                ckpt = {'epoch': epoch,
-                        'best_fitness': best_fitness,
-                        'training_results': f.read(),
-                        'model': ema.ema.module.state_dict() if hasattr(model, 'module') else ema.ema.state_dict(),
-                        'optimizer': None if final_epoch else optimizer.state_dict()}
+                ckpt = {
+                    'epoch': epoch,
+                    'best_fitness': best_fitness,
+                    'training_results': f.read(),
+                    'model': ema.ema.module.state_dict() if hasattr(model, 'module') else ema.ema.state_dict(),
+                    'optimizer': None if final_epoch else optimizer.state_dict()
+                }
             # Save last, best and delete
             torch.save(ckpt, LAST)
             if (best_fitness == fi) and not final_epoch:
