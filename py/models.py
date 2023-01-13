@@ -95,22 +95,22 @@ def create_modules(module_defs, img_size, cfg):
         elif mdef['type'] == 'reorg3d':  # yolov3-spp-pan-scale
             pass
 
-        elif mdef['type'] == 'flatten': # Added by huyu
+        elif mdef['type'] == 'flatten': # adaption
             modules = Flatten()
 
-        elif mdef['type'] == 'fullyconnect': # Added by huyu
+        elif mdef['type'] == 'fullyconnect': # adaption
             input_num = mdef['input']
             output_num = mdef['output']
             filters = 0
             modules = FullyConnect(input_num, output_num)
         
-        elif mdef['type'] == 'roidepth': # Added by huyu
+        elif mdef['type'] == 'roidepth': # adaption
             input_num = mdef['input']
             output_num = mdef['output']
             filters = 0
             modules = ROIDepth(input_num, output_num)
 
-        elif mdef['type'] == 'roiinfo': # Added by huyu
+        elif mdef['type'] == 'roiinfo': # adaption
             filters = output_filters[-1]+4
             modules = ROIInfoConcat()
 
@@ -125,7 +125,7 @@ def create_modules(module_defs, img_size, cfg):
                                 img_size=img_size,  # (416, 416)
                                 yolo_index=yolo_index,  # 0, 1, 2...
                                 layers=layers,  # output layers
-                                # stride=stride[yolo_index]) #by huyu
+                                # stride=stride[yolo_index]) # adaption
                                 stride=mdef['stride'])
 
             # Initialize preceding Conv2d() bias (https://arxiv.org/pdf/1708.02002.pdf section 3.3)
@@ -263,11 +263,11 @@ class Darknet(nn.Module):
         self.seen = np.array([0], dtype=np.int64)  # (int64) number of images seen during training
         self.info(verbose) if not ONNX_EXPORT else None  # print model description
 
-    def forward(self, x, roi=None, augment=False, verbose=False): # Modefied by huyu, original:"def forward(self, x, augment=False, verbose=False):"
+    def forward(self, x, roi=None, augment=False, verbose=False): # adaption, original:"def forward(self, x, augment=False, verbose=False):"
 
-        roi_info = roi # Add by huyu
+        roi_info = roi # adaption
         if not augment:
-            return self.forward_once(x, roi_info) # Modefied by huyu, original:"return self.forward_once(x)"
+            return self.forward_once(x, roi_info) # adaption, original:"return self.forward_once(x)"
         else:  # Augment images (inference and test only) https://github.com/ultralytics/yolov3/issues/931
             img_size = x.shape[-2:]  # height, width
             s = [0.83, 0.67]  # scales
@@ -277,7 +277,7 @@ class Darknet(nn.Module):
                                     torch_utils.scale_img(x, s[1], same_shape=False),  # scale
                                     )):
                 # cv2.imwrite('img%g.jpg' % i, 255 * xi[0].numpy().transpose((1, 2, 0))[:, :, ::-1])
-                y.append(self.forward_once(xi, roi_info)[0]) # Modefied by huyu, original:"y.append(self.forward_once(xi)[0])"
+                y.append(self.forward_once(xi, roi_info)[0]) # adaption, original:"y.append(self.forward_once(xi)[0])"
 
             y[1][..., :4] /= s[0]  # scale
             y[1][..., 0] = img_size[1] - y[1][..., 0]  # flip lr
@@ -295,7 +295,7 @@ class Darknet(nn.Module):
             return y, None
 
     def forward_once(self, x, roi, augment=False, verbose=False):
-        roi_info = roi # Add by huyu
+        roi_info = roi # adaption
         img_size = x.shape[-2:]  # height, width
         yolo_out, out = [], []
         roi_depth_logits = torch.Tensor([])
@@ -323,9 +323,9 @@ class Darknet(nn.Module):
                 x = module(x, out)  # WeightedFeatureFusion(), FeatureConcat()
             elif name == 'YOLOLayer':
                 yolo_out.append(module(x, out))
-            elif name == 'ROIInfoConcat':# Add by huyu
+            elif name == 'ROIInfoConcat':# adaption
                 x = module(x, roi_info)
-            elif name == 'ROIDepth':# Add by huyu
+            elif name == 'ROIDepth':# adaption
                 roi_depth_logits = module(x)
             else:  # run module directly, i.e. mtype = 'convolutional', 'upsample', 'maxpool', 'batchnorm2d' etc.
                 x = module(x)
@@ -336,7 +336,7 @@ class Darknet(nn.Module):
                 str = ''
 
         if self.training:  # train
-            return yolo_out, roi_depth_logits # Modefied by huyu, original: "return yolo_out"
+            return yolo_out, roi_depth_logits # adaption, original: "return yolo_out"
         # TODO:modefy inference output with roi depth output
         elif ONNX_EXPORT:  # export
             x = [torch.cat(x, 0) for x in zip(*yolo_out)]
@@ -350,7 +350,7 @@ class Darknet(nn.Module):
                 x[1][..., 0] = img_size[1] - x[1][..., 0]  # flip lr
                 x[2][..., :4] /= s[1]  # scale
                 x = torch.cat(x, 1)
-            return x, p, roi_depth_logits # Modefied by huyu, original:"return x, p"
+            return x, p, roi_depth_logits # adaption, original:"return x, p"
 
     def fuse(self):
         # Fuse Conv2d + BatchNorm2d layers throughout model

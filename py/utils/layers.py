@@ -3,7 +3,7 @@ import numpy as np
 from torch import nn
 import torch.nn.functional as F
 from utils import *
-from torch.autograd import Variable # Added by huyu
+from torch.autograd import Variable # adaption
 #from utils.utils import *
 
 
@@ -39,7 +39,7 @@ class FeatureConcat(nn.Module):
         return torch.cat([outputs[i] for i in self.layers], 1) if self.multiple else outputs[self.layers[0]]
         
 
-class FullyConnect(nn.Module): # Add by huyu
+class FullyConnect(nn.Module): # adaption
     def __init__(self, inputNum, outputNum):
         super(FullyConnect, self).__init__()
         self.output_num = outputNum
@@ -57,7 +57,7 @@ class FullyConnect(nn.Module): # Add by huyu
         x = torch.sigmoid(self.linear_func(x))  
         return x
 
-class ROIDepth(FullyConnect):...  # Add by huyu
+class ROIDepth(FullyConnect):...  # adaption
     # def __init__(self, inputNum, outputNum):
     #     super(ROIDepth, self).__init__()
     #     self.output_num = outputNum
@@ -76,7 +76,7 @@ class ROIDepth(FullyConnect):...  # Add by huyu
     #     return x
 
 
-class ROIInfoConcat(nn.Module): # Add by huyu
+class ROIInfoConcat(nn.Module): # adaption
     def __init__(self):
         super(ROIInfoConcat, self).__init__()
 

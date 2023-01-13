@@ -1,18 +1,24 @@
-import argparse
-# import test  # import test.py to get mAP after each epoch
+import os, math, argparse, glob, time, random, tqdm
+import numpy as np  
+import torch
 import torch.distributed as dist
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
+from utils import torch_utils
+import test
+from torch.utils.tensorboard import SummaryWriter
+from models import Darknet, YOLOLayer, F, parse_data_cfg, \
+    attempt_download, load_darknet_weights
+from utils.datasets import ImagesAndLabelsLoader
+from utils.utils import init_seeds, labels_to_class_weights, \
+    labels_to_image_weights, compute_loss, plot_images, plot_results, \
+    fitness, check_git_status, check_file, strip_optimizer, print_mutation 
+from typing import Dict
 import absl.logging as log
 log.set_verbosity(log.INFO)
-from torch.utils.tensorboard import SummaryWriter
-from models import *
-from utils.datasets import *
-from utils.utils import *
-from typing import Dict
 
 
-WEIGHTS_DIR  = 'weights'  # weights dir
+WEIGHTS_DIR  = 'weights'
 LAST         = os.path.join(WEIGHTS_DIR, 'last.pt')
 BEST         = os.path.join(WEIGHTS_DIR, 'best.pt')
 RES_FILE     = 'results.txt'
@@ -35,7 +41,7 @@ HYPER_PARAMS = dict(
     translate    = 0.05 * 0, # image translation (+/- fraction)
     scale        = 0.05 * 0, # image scale (+/- gain)
     shear        = 0.641 * 0 # image shear (+/- deg)
-  )  
+)  
 
 mixed_precision = True
 try:  # Mixed precision training https://github.com/NVIDIA/apex
@@ -75,7 +81,8 @@ def train(hyp: Dict[str, float]):
     weights = opt.weights  
     imgsz_min, imgsz_max, imgsz_test = opt.img_size  
     gs = 32  # (pixels) grid size
-    assert math.fmod(imgsz_min, gs) == 0, '--img-size %g must be a %g-multiple' % (imgsz_min, gs)
+    assert math.fmod(imgsz_min, gs) == \
+        0, '--img-size %g must be a %g-multiple' % (imgsz_min, gs)
     opt.multi_scale |= imgsz_min != imgsz_max  
     if opt.multi_scale:
         if imgsz_min == imgsz_max:
@@ -86,8 +93,7 @@ def train(hyp: Dict[str, float]):
     img_size = imgsz_max
     init_seeds()
     data_dict = parse_data_cfg(data)
-    train_path = data_dict['train']
-    test_path = data_dict['valid']
+    train_path, test_path = data_dict['train'], data_dict['valid']
     nc = 1 if opt.single_cls else int(data_dict['classes'])  
     HYPER_PARAMS['cls'] *= nc / 80  # update coco-tuned HYPER_PARAMS['cls'] to current dataset
     for f in glob.glob('*_batch*.jpg') + glob.glob(RES_FILE):
@@ -106,7 +112,9 @@ def train(hyp: Dict[str, float]):
         optimizer = optim.Adam(pg0, lr=HYPER_PARAMS['lr0'])
         # optimizer = AdaBound(pg0, lr=HYPER_PARAMS['lr0'], final_lr=0.1)
     else:
-        optimizer = optim.SGD(pg0, lr=HYPER_PARAMS['lr0'], momentum=HYPER_PARAMS['momentum'], nesterov=True)
+        optimizer = optim.SGD(
+            pg0, lr=HYPER_PARAMS['lr0'], momentum=HYPER_PARAMS['momentum'], nesterov=True
+        )
     optimizer.add_param_group({'params': pg1, 'weight_decay': HYPER_PARAMS['weight_decay']})  # add pg1 with weight_decay
     optimizer.add_param_group({'params': pg2})  # add pg2 (biases)
     log.info('Optimizer groups: %g .bias, %g Conv2d.weight, %g other' % (len(pg2), len(pg1), len(pg0)))
@@ -117,7 +125,10 @@ def train(hyp: Dict[str, float]):
     if weights.endswith('.pt'):
         ckpt = torch.load(weights, map_location=device)
         try:
-            ckpt['model'] = {k: v for k, v in ckpt['model'].items() if model.state_dict()[k].numel() == v.numel()}
+            ckpt['model'] = {
+                k: v for k, v in ckpt['model'].items()
+                if model.state_dict()[k].numel() == v.numel()
+            }
             model.load_state_dict(ckpt['model'], strict=False)
         except KeyError as e:
             s = "%s is not compatible with %s. Specify --weights '' or specify a --cfg compatible with %s. " \
@@ -130,13 +141,13 @@ def train(hyp: Dict[str, float]):
         # load results
         if ckpt.get('training_results') is not None:
             with open(RES_FILE, 'w') as file:
-                file.write(ckpt['training_results'])  # write results.txt
+                file.write(ckpt['training_results'])
         # epochs
         start_epoch = ckpt['epoch'] + 1
         if epochs < start_epoch:
             log.info('%s has been trained for %g epochs. Fine-tuning for %g additional epochs.' %
                   (opt.weights, ckpt['epoch'], epochs))
-            epochs += ckpt['epoch']  # finetune additional epochs
+            epochs += ckpt['epoch']
         del ckpt
     elif len(weights) > 0: 
         load_darknet_weights(model, weights)
@@ -145,8 +156,8 @@ def train(hyp: Dict[str, float]):
             idx - 1 for idx, module in enumerate(model.module_list) if isinstance(module, YOLOLayer)
         ]
         freeze_layer_indices = [
-            x for x in range(len(model.module_list)) if
-            (x not in output_layer_indices) and (x - 1 not in output_layer_indices)
+            x for x in range(len(model.module_list)) 
+            if (x not in output_layer_indices) and (x - 1 not in output_layer_indices)
         ]
         for idx in freeze_layer_indices:
             for parameter in model.module_list[idx].parameters():
@@ -180,28 +191,28 @@ def train(hyp: Dict[str, float]):
         model = torch.nn.parallel.DistributedDataParallel(model, find_unused_parameters=True)
         model.yolo_layers = model.module.yolo_layers  # move yolo layer indices to top level
     # Dataset
-    dataset = LoadImagesAndLabels(
+    dataset = ImagesAndLabelsLoader(
         train_path, img_size, batch_size,
         augment=False,
-        hyp=HYPER_PARAMS,       # augmentation hyperparameters
-        rect=opt.rect, # rectangular training
+        hyp=HYPER_PARAMS,              # augmentation hyperparameters
+        rect=opt.rect,                 # rectangular training
         cache_images=opt.cache_images,
         single_cls=opt.single_cls
     )
     # Dataloader
     batch_size = min(batch_size, len(dataset))
-    nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])  # number of workers
+    nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
         num_workers=nw,
-        shuffle=not opt.rect,  # Shuffle=True unless rectangular training is used
+        shuffle=not opt.rect,
         pin_memory=True,
         collate_fn=dataset.collate_fn
     )
     # Testloader
     testloader = torch.utils.data.DataLoader(
-        LoadImagesAndLabels(
+        ImagesAndLabelsLoader(
             test_path, imgsz_test, batch_size,
             augment=False,
             hyp=HYPER_PARAMS,
@@ -238,10 +249,13 @@ def train(hyp: Dict[str, float]):
             w = model.class_weights.cpu().numpy() * (1 - maps) ** 2  # class weights
             image_weights = labels_to_image_weights(dataset.labels, nc=nc, class_weights=w)
             dataset.indices = random.choices(range(dataset.n), weights=image_weights, k=dataset.n)  # rand weighted idx
-        mloss = torch.zeros(5).to(device)  # mean losses.Modefied by huyu, original:"mloss = torch.zeros(4).to(device)  # mean losses"
-        log.info(('\n' + '%10s' * 9) % ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'depth', 'targets', 'img_size')) # print(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'targets', 'img_size'))
+        mloss = torch.zeros(5).to(device)  # mean losses.adaption, original:"mloss = torch.zeros(4).to(device)  # mean losses"
+        log.info(
+            ('\n' + '%10s' * 9) % 
+            ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'depth', 'targets', 'img_size')
+        ) # print(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'targets', 'img_size'))
         pbar = tqdm(enumerate(dataloader), total=nb)  # progress bar
-        for i, (imgs, targets, paths, _, roi_info) in pbar:  # batch -------------------------------------------------------------Modefied by huyu, original:"for i, (imgs, targets, paths, _) in pbar:"
+        for i, (imgs, targets, paths, _, roi_info) in pbar:  # batch -------------------------------------------------------------adaption, original:"for i, (imgs, targets, paths, _) in pbar:"
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device).float() / 255.0  # uint8 to float32, 0 - 255 to 0.0 - 1.0
             targets = targets.to(device)
@@ -265,9 +279,9 @@ def train(hyp: Dict[str, float]):
                     ns = [math.ceil(x * sf / gs) * gs for x in imgs.shape[2:]]  # new shape (stretched to 32-multiple)
                     imgs = F.interpolate(imgs, size=ns, mode='bilinear', align_corners=False)
             # Forward
-            pred, pred_depth = model(imgs, roi=roi_info)# Modefied by huyu, original:"pred = model(imgs)"
+            pred, pred_depth = model(imgs, roi=roi_info)# adaption, original:"pred = model(imgs)"
             # Loss
-            loss, loss_items = compute_loss(pred, pred_depth, targets, model)# Modefied by huyu, original:"loss, loss_items = compute_loss(pred, targets, model)"
+            loss, loss_items = compute_loss(pred, pred_depth, targets, model)# adaption, original:"loss, loss_items = compute_loss(pred, targets, model)"
             if not torch.isfinite(loss):
                 log.info('WARNING: non-finite loss, ending training ', loss_items)
                 return results
@@ -286,7 +300,7 @@ def train(hyp: Dict[str, float]):
             # Print
             mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
             mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-            s = ('%10s' * 2 + '%10.3g' * 7) % ('%g/%g' % (epoch, epochs - 1), mem, *mloss, len(targets), img_size) # Modefied by huyu, original:"s = ('%10s' * 2 + '%10.3g' * 6) % ('%g/%g' % (epoch, epochs - 1), mem, *mloss, len(targets), img_size)"
+            s = ('%10s' * 2 + '%10.3g' * 7) % ('%g/%g' % (epoch, epochs - 1), mem, *mloss, len(targets), img_size) # adaption, original:"s = ('%10s' * 2 + '%10.3g' * 6) % ('%g/%g' % (epoch, epochs - 1), mem, *mloss, len(targets), img_size)"
             pbar.set_description(s)
             # Plot
             if ni < 1:
@@ -301,17 +315,17 @@ def train(hyp: Dict[str, float]):
         # Process epoch results
         ema.update_attr(model)
         final_epoch = epoch + 1 == epochs
-        # if not opt.notest or final_epoch:  # Calculate mAP
-        #     is_coco = any([x in data for x in ['coco.data', 'coco2014.data', 'coco2017.data']]) and model.nc == 80
-        #     results, maps = test.test(cfg,
-        #                               data,
-        #                               batch_size=batch_size,
-        #                               imgsz=imgsz_test,
-        #                               model=ema.ema,
-        #                               save_json=final_epoch and is_coco,
-        #                               single_cls=opt.single_cls,
-        #                               dataloader=testloader,
-        #                               multi_label=ni > n_burn)
+        if not opt.notest or final_epoch:  # Calculate mAP
+            is_coco = any([x in data for x in ['coco.data', 'coco2014.data', 'coco2017.data']]) and model.nc == 80
+            results, maps = test.test(cfg,
+                                      data,
+                                      batch_size=batch_size,
+                                      imgsz=imgsz_test,
+                                      model=ema.ema,
+                                      save_json=final_epoch and is_coco,
+                                      single_cls=opt.single_cls,
+                                      dataloader=testloader,
+                                      multi_label=ni > n_burn)
         # Write
         with open(RES_FILE, 'a') as f:
             f.write(s + '%10.3g' * 7 % results + '\n')  # P, R, mAP, F1, test_losses=(GIoU, obj, cls)

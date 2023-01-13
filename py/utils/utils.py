@@ -103,7 +103,7 @@ def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
     return x
 
 
-def xyxy2xywh(x):
+def xyxy_to_xywh(x):
     # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] where xy1=top-left, xy2=bottom-right
     y = torch.zeros_like(x) if isinstance(x, torch.Tensor) else np.zeros_like(x)
     y[:, 0] = (x[:, 0] + x[:, 2]) / 2  # x center
@@ -113,7 +113,7 @@ def xyxy2xywh(x):
     return y
 
 
-def xywh2xyxy(x):
+def xywh_to_xyxy(x):
     # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
     y = torch.zeros_like(x) if isinstance(x, torch.Tensor) else np.zeros_like(x)
     y[:, 0] = x[:, 0] - x[:, 2] / 2  # top left x
@@ -357,11 +357,11 @@ def compute_MSELoss(x, y):#huyu
     mse_loss = loss_func(x, y)
     return 200*mse_loss
 
-def compute_loss(p, pdepth, targets, model):  # predictions,depth predictions, targets, model.Modefied by huyu, original:"def compute_loss(p, targets, model)"
+def compute_loss(p, pdepth, targets, model):  # predictions,depth predictions, targets, model.adaption, original:"def compute_loss(p, targets, model)"
     ft = torch.cuda.FloatTensor if p[0].is_cuda else torch.Tensor
     lcls, lbox, lobj = ft([0]), ft([0]), ft([0])
-    tcls, tbox, indices, anchors = build_targets(p, targets, model)  # targets.Modefied by huyu, original:"tcls, tbox, indices, anchors = build_targets(p, targets, model)"
-    tdepth = Variable(targets[:,6]) # Added by huyu
+    tcls, tbox, indices, anchors = build_targets(p, targets, model)  # targets.adaption, original:"tcls, tbox, indices, anchors = build_targets(p, targets, model)"
+    tdepth = Variable(targets[:,6]) # adaption
     h = model.hyp  # hyperparameters
     red = 'mean'  # Loss reduction (sum or mean)
 
@@ -409,7 +409,7 @@ def compute_loss(p, pdepth, targets, model):  # predictions,depth predictions, t
             #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
             # Depth
-            depth_loss = compute_MSELoss(pdepth, tdepth.unsqueeze(1))# tdepth[0]:real distance in y. Add by huyu
+            depth_loss = compute_MSELoss(pdepth, tdepth.unsqueeze(1))# tdepth[0]:real distance in y. adaption
 
         lobj += BCEobj(pi[..., 4], tobj)  # obj loss
 
@@ -426,22 +426,22 @@ def compute_loss(p, pdepth, targets, model):  # predictions,depth predictions, t
     
 
     loss = lbox + lobj + lcls 
-    loss = loss + depth_loss # Add by huyu
-    return loss, torch.cat((lbox, lobj, lcls, loss, depth_loss.unsqueeze(0))).detach() # Modefied by huyu, original:"return loss, torch.cat((lbox, lobj, lcls, loss)).detach()"
+    loss = loss + depth_loss # adaption
+    return loss, torch.cat((lbox, lobj, lcls, loss, depth_loss.unsqueeze(0))).detach() # adaption, original:"return loss, torch.cat((lbox, lobj, lcls, loss)).detach()"
 
 
 def build_targets(p, targets, model):
     # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
     nt = targets.shape[0]
-    tcls, tbox, indices, anch, tdepth = [], [], [], [], [] # Modefied by huyu, original:"tcls, tbox, indices, anch = [], [], [], []"
-    gain = torch.ones(12, device=targets.device)  # normalized to gridspace gain.Modefied by huyu, original:"gain = torch.ones(6, device=targets.device)"
+    tcls, tbox, indices, anch, tdepth = [], [], [], [], [] # adaption, original:"tcls, tbox, indices, anch = [], [], [], []"
+    gain = torch.ones(12, device=targets.device)  # normalized to gridspace gain.adaption, original:"gain = torch.ones(6, device=targets.device)"
     off = torch.tensor([[1, 0], [0, 1], [-1, 0], [0, -1]], device=targets.device).float()  # overlap offsets
 
     style = None
     multi_gpu = type(model) in (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
     for i, j in enumerate(model.yolo_layers):
         anchors = model.module.module_list[j].anchor_vec if multi_gpu else model.module_list[j].anchor_vec
-        gain[2:6] = torch.tensor(p[i].shape)[[3, 2, 3, 2]]  # xyxy gain.Modefied by huyu, original:"gain[2:] = torch.tensor(p[i].shape)[[3, 2, 3, 2]]"
+        gain[2:6] = torch.tensor(p[i].shape)[[3, 2, 3, 2]]  # xyxy gain.adaption, original:"gain[2:] = torch.tensor(p[i].shape)[[3, 2, 3, 2]]"
         na = anchors.shape[0]  # number of anchors
         at = torch.arange(na).view(na, 1).repeat(1, nt)  # anchor tensor, same as .repeat_interleave(nt)
 
@@ -472,7 +472,7 @@ def build_targets(p, targets, model):
 
         # Define
         b, c = t[:, :2].long().T  # image, class
-        # d = t[:, 6:8] # Add by huyu, depth:[y,x] 
+        # d = t[:, 6:8] # adaption, depth:[y,x] 
         gxy = t[:, 2:4]  # grid xy
         gwh = t[:, 4:6]  # grid wh
         gij = (gxy - offsets).long()
@@ -480,7 +480,7 @@ def build_targets(p, targets, model):
 
         # Append
         indices.append((b, a, gj.clamp_(0, gain[3] - 1), gi.clamp_(0, gain[2] - 1)))  # image, anchor, grid indices
-        # tdepth.append(Variable(d)) # Add by huyu
+        # tdepth.append(Variable(d)) # adaption
         tbox.append(torch.cat((gxy - gij, gwh), 1))  # box
         anch.append(anchors[a])  # anchors
         tcls.append(c)  # class
@@ -489,7 +489,7 @@ def build_targets(p, targets, model):
                                        'See https://github.com/ultralytics/yolov3/wiki/Train-Custom-Data' % (
                                            model.nc, model.nc - 1, c.max())
 
-    return tcls, tbox, indices, anch# , tdepth # Modefy by huyu, original:"return tcls, tbox, indices, anch"
+    return tcls, tbox, indices, anch# , tdepth # adaption, original:"return tcls, tbox, indices, anch"
 
 
 def non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, multi_label=True, classes=None, agnostic=False):
@@ -521,7 +521,7 @@ def non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, multi_label=T
         x[..., 5:] *= x[..., 4:5]  # conf = obj_conf * cls_conf
 
         # Box (center x, center y, width, height) to (x1, y1, x2, y2)
-        box = xywh2xyxy(x[:, :4])
+        box = xywh_to_xyxy(x[:, :4])
 
         # Detections matrix nx6 (xyxy, conf, cls)
         if multi_label:
@@ -684,7 +684,7 @@ def kmean_anchors(path='./data/coco64.txt', n=9, img_size=(640, 640), thr=0.20, 
     # img_size: (min, max) image size used for multi-scale training (can be same values)
     # thr: IoU threshold hyperparameter used for training (0.0 - 1.0)
     # gen: generations to evolve anchors using genetic algorithm
-    from utils.datasets import LoadImagesAndLabels
+    from utils.datasets import ImagesAndLabelsLoader
 
     def print_results(k):
         k = k[np.argsort(k.prod(1))]  # sort small to large
@@ -705,10 +705,10 @@ def kmean_anchors(path='./data/coco64.txt', n=9, img_size=(640, 640), thr=0.20, 
 
     # Get label wh
     wh = []
-    dataset = LoadImagesAndLabels(path, augment=True, rect=True)
+    dataset = ImagesAndLabelsLoader(path, augment=True, rect=True)
     nr = 1 if img_size[0] == img_size[1] else 10  # number augmentation repetitions
     for s, l in zip(dataset.shapes, dataset.labels):
-        wh.append(l[:, 3:5] * (s / s.max()))  # image normalized to letterbox normalized wh
+        wh.append(l[:, 3:5] * (s / s.max()))  # image normalized to letter_box normalized wh
     wh = np.concatenate(wh, 0).repeat(nr, axis=0)  # augment 10x
     wh *= np.random.uniform(img_size[0], img_size[1], size=(wh.shape[0], 1))  # normalized to pixels (multi-scale)
     wh = wh[(wh > 2.0).all(1)]  # remove below threshold boxes (< 2 pixels wh)
@@ -779,10 +779,10 @@ def apply_classifier(x, model, img, im0):
             d = d.clone()
 
             # Reshape and pad cutouts
-            b = xyxy2xywh(d[:, :4])  # boxes
+            b = xyxy_to_xywh(d[:, :4])  # boxes
             b[:, 2:] = b[:, 2:].max(1)[0].unsqueeze(1)  # rectangle to square
             b[:, 2:] = b[:, 2:] * 1.3 + 30  # pad
-            d[:, :4] = xywh2xyxy(b).long()
+            d[:, :4] = xywh_to_xyxy(b).long()
 
             # Rescale boxes from img_size to im0 size
             scale_coords(img.shape[2:], d[:, :4], im0[i].shape)
@@ -791,9 +791,9 @@ def apply_classifier(x, model, img, im0):
             pred_cls1 = d[:, 5].long()
             ims = []
             for j, a in enumerate(d):  # per item
-                cutout = im0[i][int(a[1]):int(a[3]), int(a[0]):int(a[2])]
-                im = cv2.resize(cutout, (224, 224))  # BGR
-                # cv2.imwrite('test%i.jpg' % j, cutout)
+                out_out = im0[i][int(a[1]):int(a[3]), int(a[0]):int(a[2])]
+                im = cv2.resize(out_out, (224, 224))  # BGR
+                # cv2.imwrite('test%i.jpg' % j, out_out)
 
                 im = im[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
                 im = np.ascontiguousarray(im, dtype=np.float32)  # uint8 to float32
@@ -853,7 +853,7 @@ def plot_one_box(x, img, color=None, label=None, line_thickness=None):
         cv2.rectangle(img, c1, c2, color, -1, cv2.LINE_AA)  # filled
         cv2.putText(img, label, (c1[0], c1[1]++ t_size[1]), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
 
-def resieze_img_and_box(img, box, minPix=100): # Added by huyu
+def resieze_img_and_box(img, box, minPix=100): # adaption
     h, w = img.shape[0], img.shape[1]
     min_side = min(h, w)
     if min_side < minPix:
@@ -934,7 +934,7 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
         mosaic[block_y:block_y + h, block_x:block_x + w, :] = img
         if len(targets) > 0:
             image_targets = targets[targets[:, 0] == i]
-            boxes = xywh2xyxy(image_targets[:, 2:6]).T
+            boxes = xywh_to_xyxy(image_targets[:, 2:6]).T
             classes = image_targets[:, 1].astype('int')
             gt = image_targets.shape[1] == 6  # ground truth if no conf column
             conf = None if gt else image_targets[:, 6]  # check for confidence presence (gt vs pred)
@@ -985,7 +985,7 @@ def plot_lr_scheduler(optimizer, scheduler, epochs=300):
 def plot_test_txt():  # from utils.utils import *; plot_test()
     # Plot test.txt histograms
     x = np.loadtxt('test.txt', dtype=np.float32)
-    box = xyxy2xywh(x[:, :4])
+    box = xyxy_to_xywh(x[:, :4])
     cx, cy = box[:, 0], box[:, 1]
 
     fig, ax = plt.subplots(1, 1, figsize=(6, 6), tight_layout=True)

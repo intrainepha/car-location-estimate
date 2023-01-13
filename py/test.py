@@ -64,11 +64,11 @@ def test(
     names = load_classes(data['names'])  
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
     iouv = iouv[0].view(1)  # comment for mAP@0.5:0.95
-    iouv = torch.Tensor([0.35]).to(device) # Added by huyu
+    iouv = torch.Tensor([0.35]).to(device) # adaption
     niou = iouv.numel()
     # Dataloader
     if dataloader is None:
-        dataset = LoadImagesAndLabels(path, imgsz, batch_size, single_cls=opt.single_cls, pad=0.5)
+        dataset = ImagesAndLabelsLoader(path, imgsz, batch_size, single_cls=opt.single_cls, pad=0.5)
         batch_size = min(batch_size, len(dataset))
         dataloader = DataLoader(dataset,
                                 batch_size=batch_size,
@@ -84,9 +84,9 @@ def test(
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class = [], [], [], []
     d_error, d_acc = [], [[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]]
-    # depth_stats = [[],[],[],[],[]] # Added by huyu, for saving depth error stats with 5 different ranges(in merters):[0,10]/[10,30]/[30/50]/[50,80]/[80,150].
+    # depth_stats = [[],[],[],[],[]] # adaption, for saving depth error stats with 5 different ranges(in merters):[0,10]/[10,30]/[30/50]/[50,80]/[80,150].
     de_acc = [[],[],[],[],[]]
-    for batch_i, (imgs, targets, paths, shapes, roi_info) in enumerate(tqdm(dataloader, desc=s)): # Modefied by huyu, original:"for batch_i, (imgs, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):"
+    for batch_i, (imgs, targets, paths, shapes, roi_info) in enumerate(tqdm(dataloader, desc=s)): # adaption, original:"for batch_i, (imgs, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):"
         imgs = imgs.to(device).float() / 255.0  # uint8 to float32, 0 - 255 to 0.0 - 1.0
         targets = targets.to(device)
         nb, _, height, width = imgs.shape  # batch size, channels, height, width
@@ -95,7 +95,7 @@ def test(
         with torch.no_grad():
             # Run model
             t = torch_utils.time_synchronized()
-            inf_out, train_out, roidepth_out = model(imgs, roi=roi_info, augment=augment)  # inference and training outputs. Modefied by huyu, original:"inf_out, train_out, roidepth_out = model(imgs, augment=augment)"
+            inf_out, train_out, roidepth_out = model(imgs, roi=roi_info, augment=augment)  # inference and training outputs. adaption, original:"inf_out, train_out, roidepth_out = model(imgs, augment=augment)"
             t0 += torch_utils.time_synchronized() - t
             # Compute loss
             if is_training:  # if model has loss hyperparameters
@@ -126,7 +126,7 @@ def test(
                 image_id = int(Path(paths[si]).stem.split('_')[-1])
                 box = pred[:, :4].clone()  # xyxy
                 scale_coords(imgs[si].shape[1:], box, shapes[si][0], shapes[si][1])  # to original shape
-                box = xyxy2xywh(box)  # xywh
+                box = xyxy_to_xywh(box)  # xywh
                 box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
                 for p, b in zip(pred.tolist(), box.tolist()):
                     jdict.append(
@@ -143,7 +143,7 @@ def test(
                 detected = []  # target indices
                 tcls_tensor = labels[:, 0]
                 # target boxes
-                tbox = xywh2xyxy(labels[:, 1:5]) * whwh
+                tbox = xywh_to_xyxy(labels[:, 1:5]) * whwh
                 # Per target class
                 for cls in torch.unique(tcls_tensor):
                     ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)  # target indices
@@ -162,7 +162,7 @@ def test(
                                     break
             # Append statistics (correct, conf, pcls, tcls)
             stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
-            # Depth stats for eval, added by huyu.
+            # Depth stats for eval, adaption.
             tdepth = labels[:,5]
             pdepth, tdepth = np.squeeze(roidepth_out.cpu().numpy())*Y_RANGE, tdepth.cpu().numpy()*Y_RANGE
             # de = abs(tdepth-pdepth)
@@ -200,7 +200,7 @@ def test(
     else:
         nt = torch.zeros(1)
 
-    # Eval depth, added by huyu 
+    # Eval depth, adaption 
     # de_mean = [np.mean(ds) for ds in depth_stats] # get mean error in different range
     # de_acc = [np.mean(da) for da in de_acc] # get accuracy error in different range
     # de_std = [np.std(me) for me in de_mean] # get standard deviation of depth error in different range

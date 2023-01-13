@@ -64,10 +64,10 @@ def detect(save_img=False):
     if webcam:
         view_img = True
         torch.backends.cudnn.benchmark = True  # set True to speed up constant image size inference
-        dataset = LoadStreams(source, img_size=imgsz)
+        dataset = StreamsLoader(source, img_size=imgsz)
     else:
         save_img = True
-        dataset = LoadImages(source, img_size=imgsz)
+        dataset = ImagesLoader(source, img_size=imgsz)
     # Get names and colors
     names = load_classes(opt.names)
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
@@ -84,7 +84,7 @@ def detect(save_img=False):
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
         if img.ndimension() == 3:
             img = img.unsqueeze(0)
-        # Get roi-info, added by huyu.
+        # Get roi-info, adaption.
         label_path = path.replace('images', 'labels').replace('.jpg', '.txt')
         with open(label_path, 'r', encoding='utf-8') as lf:
             lines = lf.readlines()
@@ -122,13 +122,13 @@ def detect(save_img=False):
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
                     if save_txt:  # Write to file
-                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+                        xywh = (xyxy_to_xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                         with open(save_path[:save_path.rfind('.')] + '.txt', 'a') as file:
                             file.write(('%g ' * 5 + '\n') % (cls, *xywh))  # label format
                     if save_img or view_img:  # Add bbox to image
                         # label = '%s %.2f %.1f %.1f' % (names[int(cls)], conf, tdepth[i]*Y_RANGE, pdepth[i][0]*Y_RANGE)
-                        label = '%.1f %.1f' % (tdepth[i]*Y_RANGE, pdepth[i][0]*Y_RANGE) # Added by huyu
-                        img_show, xyxy_show = resieze_img_and_box(im0, xyxy, minPix=100) # Added by huyu
+                        label = '%.1f %.1f' % (tdepth[i]*Y_RANGE, pdepth[i][0]*Y_RANGE) # adaption
+                        img_show, xyxy_show = resieze_img_and_box(im0, xyxy, minPix=100) # adaption
                         plot_one_box(xyxy_show, img_show, label=label, color=colors[int(cls)])
             # Print time (inference + NMS)
             log.info('%sDone. (%.3fs)' % (s, t2 - t1))
@@ -139,8 +139,8 @@ def detect(save_img=False):
                     raise StopIteration
             # Save results (image with detections)
             if save_img:
-                # if abs(tdepth[i]*Y_RANGE - pdepth[i][0]*Y_RANGE) < 5: continue # Added by huyu
-                if abs(tdepth[i] - pdepth[i][0])/tdepth[i] < 0.1: continue # Added by huyu
+                # if abs(tdepth[i]*Y_RANGE - pdepth[i][0]*Y_RANGE) < 5: continue # adaption
+                if abs(tdepth[i] - pdepth[i][0])/tdepth[i] < 0.1: continue # adaption
                 if 0<=tdepth[i]*Y_RANGE<10: badCnt[0] = badCnt[0]+1 
                 if 10<=tdepth[i]*Y_RANGE<20: badCnt[1] = badCnt[1]+1 
                 if 20<=tdepth[i]*Y_RANGE<30: badCnt[2] = badCnt[2]+1 

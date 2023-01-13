@@ -14,7 +14,7 @@ from PIL import Image, ExifTags
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from utils.utils import xyxy2xywh, xywh2xyxy
+from utils.utils import xyxy_to_xywh, xywh_to_xyxy
 
 help_url = 'https://github.com/ultralytics/yolov3/wiki/Train-Custom-Data'
 img_formats = ['.bmp', '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.dng']
@@ -41,7 +41,7 @@ def exif_size(img):
     return s
 
 
-class LoadImages:  # for inference
+class ImagesLoader:  # for inference
     def __init__(self, path, img_size=416):
         path = str(Path(path))  # os-agnostic
         files = []
@@ -100,13 +100,13 @@ class LoadImages:  # for inference
             print('image %g/%g %s: ' % (self.count, self.nF, path), end='')
 
         # Padded resize
-        img = letterbox(img0, new_shape=self.img_size, auto=False, scaleFill=False)[0]
+        img = letter_box(img0, new_shape=self.img_size, auto=False, scaleFill=False)[0]
 
         # Convert
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
 
-        # cv2.imwrite(path + '.letterbox.jpg', 255 * img.transpose((1, 2, 0))[:, :, ::-1])  # save letterbox image
+        # cv2.imwrite(path + '.letter_box.jpg', 255 * img.transpose((1, 2, 0))[:, :, ::-1])  # save letter_box image
         return path, img, img0, self.cap
 
     def new_video(self, path):
@@ -118,7 +118,7 @@ class LoadImages:  # for inference
         return self.nF  # number of files
 
 
-class LoadWebcam:  # for inference
+class WebcamLoader:  # for inference
     def __init__(self, pipe=0, img_size=416):
         self.img_size = img_size
 
@@ -171,7 +171,7 @@ class LoadWebcam:  # for inference
         print('webcam %g: ' % self.count, end='')
 
         # Padded resize
-        img = letterbox(img0, new_shape=self.img_size)[0]
+        img = letter_box(img0, new_shape=self.img_size)[0]
 
         # Convert
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
@@ -183,7 +183,7 @@ class LoadWebcam:  # for inference
         return 0
 
 
-class LoadStreams:  # multiple IP or RTSP cameras
+class StreamsLoader:  # multiple IP or RTSP cameras
     def __init__(self, sources='streams.txt', img_size=416):
         self.mode = 'images'
         self.img_size = img_size
@@ -212,7 +212,7 @@ class LoadStreams:  # multiple IP or RTSP cameras
         print('')  # newline
 
         # check for common shapes
-        s = np.stack([letterbox(x, new_shape=self.img_size)[0].shape for x in self.imgs], 0)  # inference shapes
+        s = np.stack([letter_box(x, new_shape=self.img_size)[0].shape for x in self.imgs], 0)  # inference shapes
         self.rect = np.unique(s, axis=0).shape[0] == 1  # rect inference if all shapes equal
         if not self.rect:
             print('WARNING: Different stream shapes detected. For optimal performance supply similarly-shaped streams.')
@@ -240,8 +240,8 @@ class LoadStreams:  # multiple IP or RTSP cameras
             cv2.destroyAllWindows()
             raise StopIteration
 
-        # Letterbox
-        img = [letterbox(x, new_shape=self.img_size, auto=self.rect)[0] for x in img0]
+        # letter_box
+        img = [letter_box(x, new_shape=self.img_size, auto=self.rect)[0] for x in img0]
 
         # Stack
         img = np.stack(img, 0)
@@ -256,7 +256,7 @@ class LoadStreams:  # multiple IP or RTSP cameras
         return 0  # 1E12 frames = 32 streams at 30 FPS for 30 years
 
 
-class LoadImagesAndLabels(Dataset):  # for training/testing
+class ImagesAndLabelsLoader(Dataset):  # for training/testing
     def __init__(self, path, img_size=416, batch_size=16, augment=False, hyp=None, rect=False, image_weights=False,
                  cache_images=False, single_cls=False, pad=0.0):
         try:
@@ -356,7 +356,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                     continue
 
             if l.shape[0]:
-                assert l.shape[1] == 11, '> 11 label columns: %s' % file # Modefied by huyu, original:"assert l.shape[1] == 5, '> 5 label columns: %s' % file"
+                assert l.shape[1] == 11, '> 11 label columns: %s' % file # adaption, original:"assert l.shape[1] == 5, '> 5 label columns: %s' % file"
                 assert (l >= 0).all(), 'negative labels: %s' % file
                 assert (l[:, 1:] <= 1).all(), 'non-normalized or out of bounds coordinate labels: %s' % file
                 if np.unique(l, axis=0).shape[0] < l.shape[0]:  # duplicate rows
@@ -391,7 +391,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                         b = x[1:] * [w, h, w, h]  # box
                         b[2:] = b[2:].max()  # rectangle to square
                         b[2:] = b[2:] * 1.3 + 30  # pad
-                        b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(np.int)
+                        b = xywh_to_xyxy(b.reshape(-1, 4)).ravel().astype(np.int)
 
                         b[[0, 2]] = np.clip(b[[0, 2]], 0, w)  # clip boxes outside of image
                         b[[1, 3]] = np.clip(b[[1, 3]], 0, h)
@@ -443,16 +443,16 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         hyp = self.hyp
         if self.mosaic:
             # Load mosaic
-            img, labels, roi_info = load_mosaic(self, index) # Mdefied by huyu, original:"img, labels = load_mosaic(self, index)"
+            img, labels, roi_info = load_mosaic(self, index) # adaption, original:"img, labels = load_mosaic(self, index)"
             shapes = None
 
         else:
             # Load image
             img, (h0, w0), (h, w) = load_image(self, index)
 
-            # Letterbox
+            # letter_box
             shape = self.batch_shapes[self.batch[index]] if self.rect else self.img_size  # final letterboxed shape
-            img, ratio, pad = letterbox(img, shape, auto=False, scaleup=self.augment)
+            img, ratio, pad = letter_box(img, shape, auto=False, scaleup=self.augment)
             shapes = (h0, w0), ((h / h0, w / w0), pad)  # for COCO mAP rescaling
 
             # Load labels
@@ -465,7 +465,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 labels[:, 2] = ratio[1] * h * (x[:, 2] - x[:, 4] / 2) + pad[1]  # pad height
                 labels[:, 3] = ratio[0] * w * (x[:, 1] + x[:, 3] / 2) + pad[0]
                 labels[:, 4] = ratio[1] * h * (x[:, 2] + x[:, 4] / 2) + pad[1]
-            # Load ROI Info. Added by huyu.
+            # Load ROI Info. adaption.
             roi_info =  [x[:, -4], x[:, -3], x[:, -2], x[:, -1]]
 
         if self.augment:
@@ -482,12 +482,12 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
             # Apply cutouts
             # if random.random() < 0.9:
-            #     labels = cutout(img, labels)
+            #     labels = out_out(img, labels)
 
         nL = len(labels)  # number of labels
         if nL:
             # convert xyxy to xywh
-            labels[:, 1:5] = xyxy2xywh(labels[:, 1:5])
+            labels[:, 1:5] = xyxy_to_xywh(labels[:, 1:5])
 
             # Normalize coordinates 0 - 1
             labels[:, [2, 4]] /= img.shape[0]  # height
@@ -508,7 +508,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 if nL:
                     labels[:, 2] = 1 - labels[:, 2]
 
-        labels_out = torch.zeros((nL, 12)) # Modefied by huyu, original:"labels_out = torch.zeros((nL, 6))"
+        labels_out = torch.zeros((nL, 12)) # adaption, original:"labels_out = torch.zeros((nL, 6))"
         if nL:
             labels_out[:, 1:] = torch.from_numpy(labels)
 
@@ -516,14 +516,14 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
 
-        return torch.from_numpy(img), labels_out, self.img_files[index], shapes, roi_info # Modefied by huyu, original:"return torch.from_numpy(img), labels_out, self.img_files[index], shapes"
+        return torch.from_numpy(img), labels_out, self.img_files[index], shapes, roi_info # adaption, original:"return torch.from_numpy(img), labels_out, self.img_files[index], shapes"
 
     @staticmethod
     def collate_fn(batch):
-        img, label, path, shapes, roi_info = zip(*batch)  # transposed. Modefied by huyu, original:"img, label, path, shapes = zip(*batch)"
+        img, label, path, shapes, roi_info = zip(*batch)  # transposed. adaption, original:"img, label, path, shapes = zip(*batch)"
         for i, l in enumerate(label):
             l[:, 0] = i  # add target image index for build_targets()
-        return torch.stack(img, 0), torch.cat(label, 0), path, shapes, roi_info # Modefied by huyu, original:"return torch.stack(img, 0), torch.cat(label, 0), path, shapes"
+        return torch.stack(img, 0), torch.cat(label, 0), path, shapes, roi_info # adaption, original:"return torch.stack(img, 0), torch.cat(label, 0), path, shapes"
 
 
 def load_image(self, index):
@@ -601,7 +601,7 @@ def load_mosaic(self, index):
             labels[:, 3] = w * (x[:, 1] + x[:, 3] / 2) + padw
             labels[:, 4] = h * (x[:, 2] + x[:, 4] / 2) + padh
         labels4.append(labels)
-        # ROI Info. Added by huyu.
+        # ROI Info. adaption.
         roi_info =  [x[:, -4], x[:, -3], x[:, -2], x[:, -1]]
 
     # Concat/clip labels
@@ -619,10 +619,10 @@ def load_mosaic(self, index):
                                   shear=self.hyp['shear'],
                                   border=-s // 2)  # border to remove
 
-    return img4, labels4, roi_info # Modefied by huyu, original:"return img4, labels4"
+    return img4, labels4, roi_info # adaption, original:"return img4, labels4"
 
 
-def letterbox(img, new_shape=(416, 416), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True):
+def letter_box(img, new_shape=(416, 416), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True):
     # Resize image to a 32-pixel-multiple rectangle https://github.com/ultralytics/yolov3/issues/232
     shape = img.shape[:2]  # current shape [height, width]
     if isinstance(new_shape, int):
@@ -724,7 +724,7 @@ def random_affine(img, targets=(), degrees=10, translate=.1, scale=.1, shear=10,
     return img, targets
 
 
-def cutout(image, labels):
+def out_out(image, labels):
     # https://arxiv.org/abs/1708.04552
     # https://github.com/hysts/pytorch_cutout/blob/master/dataloader.py
     # https://towardsdatascience.com/when-conventional-wisdom-fails-revisiting-data-augmentation-for-self-driving-cars-4831998c5509
@@ -833,7 +833,7 @@ def recursive_dataset2bmp(dataset='../data/sm4_bmp'):  # from utils.datasets imp
                     os.system("rm '%s'" % p)
 
 
-def imagelist2folder(path='data/coco_64img.txt'):  # from utils.datasets import *; imagelist2folder()
+def img_list_to_folder(path='data/coco_64img.txt'):  # from utils.datasets import *; img_list_to_folder()
     # Copies all the images in a text file (list of images) into a folder
     create_folder(path[:-4])
     with open(path, 'r') as f:
