@@ -98,8 +98,12 @@ def detect(save_img=False):
         if half:
             pred = pred.float()
         # Apply NMS
-        pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres,
-                                   multi_label=False, classes=opt.classes, agnostic=opt.agnostic_nms)
+        pred = non_max_suppression(
+            pred, opt.conf_thres, opt.iou_thres,
+            multi_label=False,
+            classes=opt.classes,
+            agnostic=opt.agnostic_nms
+        )
         # Apply Classifier
         if classify:
             pred = apply_classifier(pred, modelc, img, im0s)
