@@ -1,0 +1,15 @@
+train:
+  cfg: cfg/roidepth_0_0_2.cfg
+  data: 'data/roidepth-kitti.data'
+  weights: weights/roi_net_1_0_0_pre_1000000.weights
+  img_size: [128, 128]
+  device: 0
+  epochs: 2
+  batch_size: 64
+  grid_size: 32
+  multi_scale: false
+  rect: false
+  cache_imgs: false
+  name: ''
+  single_cls: false
+  freeze_layers: false
