@@ -10,6 +10,5 @@ train:
   multi_scale: false
   rect: false
   cache_imgs: false
-  name: ''
   single_cls: false
   freeze_layers: false

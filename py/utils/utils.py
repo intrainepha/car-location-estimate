@@ -888,8 +888,8 @@ def plot_wh_methods():  # from utils.utils import *; plot_wh_methods()
 def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max_size=640, max_subplots=16):
     tl = 3  # line thickness
     tf = max(tl - 1, 1)  # font thickness
-    if os.path.isfile(fname):  # do not overwrite
-        return None
+    # if os.path.isfile(fname):  # do not overwrite
+    #     return None
 
     if isinstance(images, torch.Tensor):
         images = images.cpu().numpy()
@@ -961,9 +961,9 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
         # Image border
         cv2.rectangle(mosaic, (block_x, block_y), (block_x + w, block_y + h), (255, 255, 255), thickness=3)
 
-    if fname is not None:
-        mosaic = cv2.resize(mosaic, (int(ns * w * 0.5), int(ns * h * 0.5)), interpolation=cv2.INTER_AREA)
-        cv2.imwrite(fname, cv2.cvtColor(mosaic, cv2.COLOR_BGR2RGB))
+    mosaic = cv2.resize(mosaic, (int(ns * w * 0.5), int(ns * h * 0.5)), interpolation=cv2.INTER_AREA)
+    # if fname is not None:
+    #     cv2.imwrite(fname, cv2.cvtColor(mosaic, cv2.COLOR_BGR2RGB))
 
     return mosaic
 

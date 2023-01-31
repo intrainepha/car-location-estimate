@@ -169,7 +169,7 @@ class Trainer(BaseTask):
             TODO
         """
 
-        self.get_opts('options.yaml')
+        self.get_opts('config.yaml')
         check_file(self.cfg)
         check_file(self.data)
         self.data_dict = parse_data_cfg(self.data)
@@ -177,7 +177,8 @@ class Trainer(BaseTask):
         init_seeds()
         from torch.utils.tensorboard import SummaryWriter
         log.info('Start Tensorboard with "tensorboard --logdir=runs", view at http://localhost:6006/')
-        self.tb_writer = SummaryWriter(comment=self.name)
+        # self.tbw = SummaryWriter(comment=self.name)
+        self.tbw = SummaryWriter()
         self.lf = lambda x: (((1 + math.cos(x * math.pi / self.epochs)) / 2) ** 1.0) * 0.95 + 0.05  # cosine
         self.run() 
 
@@ -207,15 +208,29 @@ class Trainer(BaseTask):
         self.multi_scale = opt.get('multi_scale')
         self.rect = opt.get('rect')
         self.cache_imgs = opt.get('cache_imgs')
-        self.name = opt.get('name')
+        # self.name = opt.get('name')
         self.adam = opt.get('adam')
         self.single_cls = opt.get('single_cls')
         self.freeze_layers = opt.get('freeze_layers')
         log.info(opt)
+
+        self.accumulate = max(round(64 / self.batch_size), 1) 
         
         return opt
 
-    def init_model(self) -> Any:
+    def init_model(self, dataset) -> Any:
+        """TODO
+
+        Args:
+            TODO
+
+        Raises:
+            TODO
+
+        Returns:
+            TODO
+        """
+
         model = Darknet(self.cfg).to(self.device)
         pg0, pg1, pg2 = [], [], []  # optimizer parameter groups
         for k, v in dict(model.named_parameters()).items():
@@ -282,9 +297,28 @@ class Trainer(BaseTask):
             )
             model = torch.nn.parallel.DistributedDataParallel(model, find_unused_parameters=True)
             model.yolo_layers = model.module.yolo_layers  # move yolo layer indices to top level
-        return model, optimizer, scheduler, start_epoch
+            # Model parameters
+        nc = 1 if self.single_cls else int(self.data_dict.get('classes'))  
+        HYPER_PARAMS['cls'] *= nc / 80  # update coco-tuned HYPER_PARAMS['cls'] to current dataset
+        model.nc = nc   # attach number of classes to model
+        model.hyp = HYPER_PARAMS # attach hyperparameters to model
+        model.gr = 1.0  # giou loss ratio (obj_loss = 1.0 or giou)
+        model.class_weights = labels_to_class_weights(dataset.labels, nc).to(self.device)  # attach class weights
+        return model, optimizer, scheduler, nc, start_epoch
 
     def load_dataset(self):
+        """TODO
+
+        Args:
+            TODO
+
+        Raises:
+            TODO
+
+        Returns:
+            TODO
+        """
+
         dataset = ImagesAndLabelsLoader(
             self.data_dict.get('train'),
             self.imsz[1],
@@ -308,6 +342,24 @@ class Trainer(BaseTask):
         )
         return dataset, dataloader, nw
 
+    def plot_batch_sample(self, imgs:list, targets:list, paths:list, step:int):
+        """TODO
+
+        Args:
+            TODO
+
+        Raises:
+            TODO
+
+        Returns:
+            TODO
+        """
+
+        tag = 'batch_sample.jpg'
+        im = plot_images(images=imgs, targets=targets, paths=paths, fname=tag)
+        if self.tbw:
+            self.tbw.add_image(tag, im, dataformats='HWC', global_step=step)
+
     def run(self):
         """TODO
 
@@ -321,55 +373,40 @@ class Trainer(BaseTask):
             TODO
         """
 
-        accumulate = max(round(64 / self.batch_size), 1)  # accumulate n times before optimizer update (bs 64)
         grid_min, grid_max = self.extend_img_size()
         imsz = self.imsz[1]
-        nc = 1 if self.single_cls else int(self.data_dict.get('classes'))  
-        HYPER_PARAMS['cls'] *= nc / 80  # update coco-tuned HYPER_PARAMS['cls'] to current dataset
-        for f in glob('*_batch*.jpg') + glob(RES_FILE):
-            os.remove(f)
-        model, optimizer, scheduler, start_epoch = self.init_model()
         dataset, dataloader, nw = self.load_dataset()
-        # Model parameters
-        model.nc = nc   # attach number of classes to model
-        model.hyp = HYPER_PARAMS # attach hyperparameters to model
-        model.gr = 1.0  # giou loss ratio (obj_loss = 1.0 or giou)
-        model.class_weights = labels_to_class_weights(dataset.labels, nc).to(self.device)  # attach class weights
-        # Model EMA
-        ema = ModelEMA(model)
-        # Start training
-        nb = len(dataloader)  # number of batches
-        n_burn = max(3 * nb, 500)  # burn-in iterations, max(3 epochs, 500 iterations)
-        maps = np.zeros(nc)  # mAP per class
-        # torch.autograd.set_detect_anomaly(True)
-        results = (0, 0, 0, 0, 0, 0, 0)  # 'P', 'R', 'mAP', 'F1', 'val GIoU', 'val Objectness', 'val Classification'
-        t0 = time()
+        model, optimizer, scheduler, nc, start_epoch = self.init_model(dataset)
         log.info('Image sizes {} - {} train, {} test'.format(self.imsz[0], self.imsz[1], self.imsz[2]))
         log.info('Using {} dataloader workers'.format(nw))
         log.info('Starting training for {} epochs...'.format(self.epochs))
+        ema = ModelEMA(model)
+        n_bs = len(dataloader)
+        n_burn = max(3 * n_bs, 500)
+        results, maps = (0, 0, 0, 0, 0, 0, 0), np.zeros(nc) 
+        t0 = time()
         for epoch in range(start_epoch, self.epochs):
             model.train()
-            # Update image weights (optional)
             if dataset.image_weights:
-                w = model.class_weights.cpu().numpy() * (1 - maps) ** 2  # class weights
+                w = model.class_weights.cpu().numpy() * (1 - maps) ** 2 
                 image_weights = labels_to_image_weights(dataset.labels, nc=nc, class_weights=w)
-                dataset.indices = random.choices(range(dataset.n), weights=image_weights, k=dataset.n)  # rand weighted idx
-            mloss = torch.zeros(5).to(self.device)  # mean losses.adaption, original:"mloss = torch.zeros(4).to(device)  # mean losses"
+                dataset.indices = random.choices(range(dataset.n), weights=image_weights, k=dataset.n) 
+            mean_loss = torch.zeros(5).to(self.device) 
             log.info(
                 ('\n' + '%10s' * 9) % 
                 ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'depth', 'targets', 'img_size')
             ) 
             best_fitness = 0.0
-            pbar = tqdm(enumerate(dataloader), total=nb) 
+            pbar = tqdm(enumerate(dataloader), total=n_bs) 
             for i, (imgs, targets, paths, _, roi_info) in pbar:
-                ni = i + nb * epoch  # number integrated batches (since train start)
+                ni = i + n_bs * epoch 
                 imgs = imgs.to(self.device).float() / 255.0  # uint8 to float32, 0 - 255 to 0.0 - 1.0
                 targets = targets.to(self.device)
                 # Burn-in
                 if ni <= n_burn:
                     xi = [0, n_burn]
-                    model.gr = np.interp(ni, xi, [0.0, 1.0])  # giou loss ratio (obj_loss = 1.0 or giou)
-                    accumulate = max(1, np.interp(ni, xi, [1, 64 / self.batch_size]).round())
+                    model.gr = np.interp(ni, xi, [0.0, 1.0])
+                    self.accumulate = max(1, np.interp(ni, xi, [1, 64 / self.batch_size]).round())
                     for j, x in enumerate(optimizer.param_groups):
                         # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
                         x['lr'] = np.interp(ni, xi, [0.1 if j == 2 else 0.0, x['initial_lr'] * self.lf(epoch)])
@@ -378,44 +415,33 @@ class Trainer(BaseTask):
                             x['momentum'] = np.interp(ni, xi, [0.9, HYPER_PARAMS['momentum']])
                 # Multi-Scale
                 if self.multi_scale:
-                    if ni / accumulate % 1 == 0:  #  adjust img_size (67% - 150%) every 1 batch
+                    if ni / self.accumulate % 1 == 0:  #  adjust img_size (67% - 150%) every 1 batch
                         imsz = random.randrange(grid_min, grid_max + 1) * self.grid_size
                     sf = imsz / max(imgs.shape[2:])  # scale factor
                     if sf != 1:
-                        ns = [math.ceil(x * sf / self.grid_size) * self.grid_size for x in imgs.shape[2:]]  # new shape (stretched to 32-multiple)
+                        # new shape (stretched to 32-multiple)
+                        ns = [math.ceil(x * sf / self.grid_size) * self.grid_size for x in imgs.shape[2:]]  
                         imgs = F.interpolate(imgs, size=ns, mode='bilinear', align_corners=False)
-                # Forward
-                pred, pred_depth = model(imgs, roi=roi_info)# adaption, original:"pred = model(imgs)"
-                # Loss
-                loss, loss_items = compute_loss(pred, pred_depth, targets, model)# adaption, original:"loss, loss_items = compute_loss(pred, targets, model)"
+                pred, pred_depth = model(imgs, roi=roi_info)
+                loss, loss_items = compute_loss(pred, pred_depth, targets, model)
                 if not torch.isfinite(loss):
                     log.info('WARNING: non-finite loss, ending training ', loss_items)
                     return results
-                # Backward
-                loss *= self.batch_size / 64  # scale loss
+                loss *= self.batch_size / 64 
                 loss.backward()
-                # Optimize
-                if ni % accumulate == 0:
+                if ni % self.accumulate == 0:
                     optimizer.step()
                     optimizer.zero_grad()
                     ema.update(model)
-                # Print
-                mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
-                mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-                s = ('%10s' * 2 + '%10.3g' * 7) % ('%g/%g' % (epoch, self.epochs - 1), mem, *mloss, len(targets), imsz) # adaption, original:"s = ('%10s' * 2 + '%10.3g' * 6) % ('%g/%g' % (epoch, epochs - 1), mem, *mloss, len(targets), img_size)"
+                mean_loss = (mean_loss * i + loss_items) / (i + 1)
+                mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  
+                s = ('%10s' * 2 + '%10.3g' * 7) % ('%g/%g' % (epoch, self.epochs - 1), mem, *mean_loss, len(targets), imsz) 
                 pbar.set_description(s)
-                # Plot
-                if ni < 1:
-                    f = 'train_batch%g.jpg' % i  # filename
-                    res = plot_images(images=imgs, targets=targets, paths=paths, fname=f)
-                    if self.tb_writer:
-                        self.tb_writer.add_image(f, res, dataformats='HWC', global_step=epoch)
+                self.plot_batch_sample(imgs, targets, paths, epoch) if ni==0 else None
             scheduler.step()
             ema.update_attr(model)
             final_epoch = epoch + 1 == self.epochs
-            with open(RES_FILE, 'a') as f:
-                f.write(s + '%10.3g' * 7 % results + '\n')  # P, R, mAP, F1, test_losses=(GIoU, obj, cls)
-            if self.tb_writer:
+            if self.tbw:
                 tags = [
                     'train/giou_loss', 'train/obj_loss',
                     'train/cls_loss', 'metrics/precision',
@@ -423,42 +449,26 @@ class Trainer(BaseTask):
                     'metrics/F1', 'val/giou_loss',
                     'val/obj_loss', 'val/cls_loss'
                 ]
-                for x, tag in zip(list(mloss[:-1]) + list(results), tags):
-                    self.tb_writer.add_scalar(tag, x, epoch)
+                for x, tag in zip(list(mean_loss[:-1]) + list(results), tags):
+                    self.tbw.add_scalar(tag, x, epoch)
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1)) # fitness_i = weighted combination of [P, R, mAP, F1]
             if fi > best_fitness:
                 best_fitness = fi
             # Save model
-            with open(RES_FILE, 'r') as f:  # create checkpoint
-                ckpt = {
-                    'epoch': epoch,
-                    'best_fitness': best_fitness,
-                    'training_results': f.read(),
-                    'model': ema.ema.module.state_dict() if hasattr(model, 'module') else ema.ema.state_dict(),
-                    'optimizer': None if final_epoch else optimizer.state_dict()
-                }
+            # with open(RES_FILE, 'r') as f:  # create checkpoint
+            ckpt = {
+                'epoch': epoch,
+                'best_fitness': best_fitness,
+                # 'training_results': f.read(),
+                'model': ema.ema.module.state_dict() if hasattr(model, 'module') else ema.ema.state_dict(),
+                'optimizer': None if final_epoch else optimizer.state_dict()
+            }
             torch.save(ckpt, LAST)
             if (best_fitness == fi) and not final_epoch:
                 torch.save(ckpt, BEST)
-                log.info('{}-save-as-best'.format(epoch))
+                log.info('Save as best')
             del ckpt
-        # Copy weights
-        if len(self.name):
-            self.name = '_' + self.name if not self.name.isnumeric() else self.name
-            fresults, flast, fbest = \
-                'results{}.txt'.format(self.name), \
-                WEIGHTS_DIR + 'last{}.pt'.format(self.name), \
-                WEIGHTS_DIR + 'best{}.pt'.format(self.name)
-            for f1, f2 in zip(
-                [WEIGHTS_DIR + 'last.pt', WEIGHTS_DIR + 'best.pt', 'results.txt'],
-                [flast, fbest, fresults]
-            ):
-                if os.path.exists(f1):
-                    os.rename(f1, f2)  # rename
-                    ispt = f2.endswith('.pt')  # is *.pt
-                    strip_optimizer(f2) if ispt else None  # strip optimizer
-        plot_results()  # save as results.png
         log.info(
             '%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time() - t0) / 3600)
         )
