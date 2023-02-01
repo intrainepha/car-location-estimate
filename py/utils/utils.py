@@ -427,7 +427,7 @@ def compute_loss(p, pdepth, targets, model):  # predictions,depth predictions, t
 
     loss = lbox + lobj + lcls 
     loss = loss + depth_loss # adaption
-    return loss, torch.cat((lbox, lobj, lcls, loss, depth_loss.unsqueeze(0))).detach() # adaption, original:"return loss, torch.cat((lbox, lobj, lcls, loss)).detach()"
+    return loss, torch.cat((lbox, lobj, lcls, depth_loss.unsqueeze(0), loss)).detach() # adaption, original:"return loss, torch.cat((lbox, lobj, lcls, loss)).detach()"
 
 
 def build_targets(p, targets, model):

@@ -1,30 +1,33 @@
-import os, sys, time, absl
+import os, sys, absl
 import threading, multiprocessing, traceback
+import absl.logging as log
+from functools import wraps
+from timeit import default_timer
 from typing import Callable
 
-def timer(func:Callable) -> Callable:
+def timer(name:str) -> Callable:
     """Wrapper for calculating time costing of a function.
 
     Args:
-        func (function): The function you need to cal time costing.
+        name (str): Identity for log.
 
     Raises:
         None
 
     Returns:
-        wrapper: A decorator.
+        decorator: A decorator.
     """
-    wrapper_name = timer.__name__
-    func_name = func.__name__
-    def wrapper(*arg, **kwargs) -> None:
-        start_time = time.time()
-        ret = func(*arg, **kwargs)
-        time_cost = time.time() - start_time
-        absl.logging.info("%s:%s: %s(s)", wrapper_name, func_name, str(time_cost))
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*arg, **kwargs) -> None:
+            start_time = default_timer()
+            res = fn(*arg, **kwargs)
+            elapse = default_timer()-start_time
+            log.info("elapsed:{}:{}s".format(name, round(elapse, 3)))
+            return res
+        return wrapper
 
-        return ret
-
-    return wrapper
+    return decorator
 
 def new_thread(func:Callable) -> Callable:
     """Wrapper for opening a new thread to run function.
