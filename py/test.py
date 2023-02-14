@@ -4,9 +4,9 @@ import numpy as np
 import absl.logging as log
 log.set_verbosity(log.INFO)
 from torch.utils.data import DataLoader
-from models import *
-from utils.datasets import *
-from utils.utils import *
+from py.model import *
+from todo.datasets import *
+from utils import *
 from py.indicators import *
 
 

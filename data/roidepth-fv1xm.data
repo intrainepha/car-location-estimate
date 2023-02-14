@@ -1,4 +1,0 @@
-classes=4
-train=dataset/train/paths.txt
-valid=dataset/test/paths.txt
-names=data/cls4.names

@@ -5,13 +5,13 @@ import torch.distributed as dist
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 from tqdm import tqdm
-from utils import torch_utils
+from py import torch_utils
 import test
 from torch.utils.tensorboard import SummaryWriter
-from models import Darknet, YOLOLayer, F, parse_data_cfg, \
+from py.model import Darknet, YOLOLayer, F, parse_data_cfg, \
     attempt_download, load_darknet_weights
-from utils.datasets import ImagesAndLabelsLoader
-from utils.utils import init_seeds, labels_to_class_weights, \
+from todo.datasets import ImagesAndLabelsLoader
+from utils import init_seeds, labels_to_class_weights, \
     labels_to_image_weights, compute_loss, plot_images, plot_results, \
     fitness, check_git_status, check_file, strip_optimizer, print_mutation 
 from typing import Dict

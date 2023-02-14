@@ -1,46 +1,62 @@
-train:
-  cfg          : cfg/roidepth_0_0_2.cfg
-  data         : data/roidepth-kitti.data
-  weights      : weights/roi_net_1_0_0_pre_1000000.weights
-  img_size     : [128, 128]
-  device       : 0
-  epochs       : 10
-  batch_size   : 64
-  rect         : false
-  cache_imgs   : false
-  single_cls   : false
-  freeze_layers: false
-test:
-  cfg          : cfg/roidepth_0_0_2.cfg
-  data         : data/roidepth-kitti.data
-  weights      : weights/roi_net_1_0_0_pre_1000000.weights
-  varbose      : true
-  img_size     : 416
-  device       : 0
-  batch_size   : 16
-  conf_thres   : 0.001
-  iou_thres    : 0.6
-  save_json    : false
-  single_cls   : false
-  augment      : false
-  multi_label  : true
-detect:
 hyper:
-  giou        : 3.54      # giou loss gain
-  cls         : 37.4      # cls loss gain
-  cls_pw      : 1.0       # cls BCELoss positive_weight
-  obj         : 64.3      # obj loss gain (*=imsz/320 if imsz != 320)
-  obj_pw      : 1.0       # obj BCELoss positive_weight
-  iou_t       : 0.20      # iou training threshold
-  lr0         : 0.001     # initial learning rate (SGD=5E-3, Adam=5E-4)
-  lrf         : 0.0005    # final learning rate (with cos scheduler)
-  momentum    : 0.937     # SGD momentum
-  weight_decay: 0.01      # optimizer weight decay
-  fl_gamma    : 0.0       # focal loss gamma (efficientDet default is gamma=1.5)
-  hsv_h       : 0.0138    # image HSV-Hue augmentation (fraction)
-  hsv_s       : 0.678     # image HSV-Saturation augmentation (fraction)
-  hsv_v       : 0.36      # image HSV-Value augmentation (fraction)
-  degrees     : 1.98      # image rotation (+/- deg)
-  translate   : 0.05      # image translation (+/- fraction)
-  scale       : 0.05      # image scale (+/- gain)
-  shear       : 0.641     # image shear (+/- deg)
+  giou     : 3.54      # giou loss gain
+  cls      : 37.4      # cls loss gain
+  cls_pw   : 1.0       # cls BCELoss positive_weight
+  obj      : 64.3      # obj loss gain (*=imsz/320 if imsz != 320)
+  obj_pw   : 1.0       # obj BCELoss positive_weight
+  iou_t    : 0.20      # iou training threshold
+  fl_gamma : 0.0       # focal loss gamma (efficientDet default is gamma=1.5)
+  hsv_h    : 0.0138    # image HSV-Hue augmentation (fraction)
+  hsv_s    : 0.678     # image HSV-Saturation augmentation (fraction)
+  hsv_v    : 0.36      # image HSV-Value augmentation (fraction)
+  degrees  : 1.98      # image rotation (+/- deg)
+  translate: 0.05      # image translation (+/- fraction)
+  scale    : 0.05      # image scale (+/- gain)
+  shear    : 0.641     # image shear (+/- deg)
+  
+train:
+  net_cfg              : cfg/roidepth_0_0_2.cfg
+  data_cfg             : cfg/roidepth-kitti.data
+  pretrained           : weights/roi_net_1_0_0_pre_1000000.weights
+  gray                 : false
+  img_size_min         : 128
+  img_size_max         : 128 #TODO
+  val_img_size         : 128
+  n_workers            : 4
+  device               : cuda:0
+  rect_label           : false
+  augment              : false
+  seed                 : 0
+  epochs               : 10
+  batch_size           : 64
+  cache_imgs           : false
+  single_cls           : false
+  ema_decay            : 0.999
+  freeze_layers        : false
+  optim_lr             : 0.001     # initial learning rate (SGD=5E-3, Adam=5E-4)
+  optim_momentum       : 0.937     # SGD momentum
+  optim_weight_decay   : 0.0005    # optimizer weight decay
+  accumulate_batch_size: 64
+  conf_threshold       : 0.001
+  iou_threshold        : 0.5
+  verbose              : false
+
+test:
+  net_cfg       : cfg/roidepth_0_0_2.cfg
+  data_cfg      : cfg/roidepth-kitti.data
+  weights       : weights/roi_net_1_0_0_pre_1000000.weights
+  varbose       : true
+  gray          : false
+  cache_imgs    : false
+  img_size      : 416
+  device        : cuda:0
+  batch_size    : 16
+  rect_label    : false
+  conf_threshold: 0.001
+  iou_threshold : 0.6
+  save_json     : false
+  single_cls    : false
+  augment       : false
+  multi_label   : true
+
+detect:

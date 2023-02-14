@@ -40,10 +40,10 @@ class FeatureConcat(nn.Module):
         
 
 class FullyConnect(nn.Module): # adaption
-    def __init__(self, inputNum, outputNum):
+    def __init__(self, n_input, n_output):
         super(FullyConnect, self).__init__()
-        self.output_num = outputNum
-        self.input_num = inputNum
+        self.output_num = n_output
+        self.input_num = n_input
         self.linear_func = nn.Linear(self.input_num, self.output_num)
 
     def forward(self, x):
@@ -54,6 +54,7 @@ class FullyConnect(nn.Module): # adaption
                 input_num *= feature_shape[i] 
             else:
                 continue  
+        print(x.size())
         x = torch.sigmoid(self.linear_func(x))  
         return x
 
