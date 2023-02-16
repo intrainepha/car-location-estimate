@@ -27,7 +27,7 @@ train:
   rect_label           : false
   augment              : false
   seed                 : 0
-  epochs               : 10
+  epochs               : 1
   batch_size           : 64
   cache_imgs           : false
   single_cls           : false

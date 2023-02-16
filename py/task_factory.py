@@ -1,15 +1,8 @@
-import math
-import os
-import random
-import json
-import time
-import yaml
+import math, os, random, time, yaml, tqdm
 import numpy as np
-from tqdm import tqdm
 import torch
-from torch import nn, optim
+from torch import nn, optim, cuda
 from torch.backends import cudnn
-from torch.cuda import amp
 from torch.optim import lr_scheduler
 from torch.optim.swa_utils import AveragedModel
 from torch.utils.data import DataLoader, Dataset
@@ -19,7 +12,6 @@ from dataset import parse_dataset_config, labels_to_class_weights, LoadImagesAnd
 from utils import load_pretrained_torch_state_dict, load_pretrained_darknet_state_dict, \
     save_torch_state_dict, AverageMeter, ProgressMeter, plot_images, non_max_suppression, \
     clip_coords, xywh2xyxy, ap_per_class, load_classes
-from Net import ROIEstNet
 from model import Darknet, compute_loss
 from wrapper import timer
 from indicators import collect_depth, cal_depth_indicators
@@ -184,7 +176,7 @@ class Trainer(BaseTask):
         torch.manual_seed(OPT['seed'])
         torch.cuda.manual_seed_all(OPT['seed'])
         cudnn.benchmark = True
-        self.scaler = amp.GradScaler()
+        self.scaler = cuda.amp.GradScaler()
         self.start_epoch = 0
         self.train_dataset, self.train_dataloader, self.val_dataloader, self.names, self.n_classes = \
             self._build_dataset()
@@ -416,7 +408,7 @@ class Trainer(BaseTask):
                         x['momentum'] = np.interp(total_batch_i, xi, [0.9, OPT['optim_momentum']])
             self.model.zero_grad(set_to_none=True)
             # Mixed precision training
-            with amp.autocast():
+            with cuda.amp.autocast():
                 p, p_roidepth = self.model(imgs, roi_info)
                 loss, loss_item = compute_loss(p, p_roidepth, targets, self.model)
                 loss *= OPT['batch_size'] / OPT['accumulate_batch_size']
@@ -656,7 +648,7 @@ class Tester(BaseTask):
         p, r, f1, mp, mr, map50, mf1 = 0., 0., 0., 0., 0., 0., 0.
         jdict, stats, ap, ap_class = [], [], [], []
 
-        for _, (imgs, targets, _, _, roi_info) in enumerate(tqdm(test_dataloader, desc=s)):
+        for _, (imgs, targets, _, _, roi_info) in enumerate(tqdm.tqdm(test_dataloader, desc=s)):
             imgs = imgs.to(device).float() / 255.0  # uint8 to float32, 0 - 255 to 0.0 - 1.0
             targets = targets.to(device)
             _, _, height, width = imgs.shape  # batch size, channels, height, width
@@ -774,3 +766,4 @@ if __name__=="__main__":
     # Train
     task = Trainer()
     task.go()
+    exit(0)

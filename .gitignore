@@ -1,8 +1,6 @@
 # Others
 .vscode/
-datasets/
 dataset/
-runs/
 logs/
 indicators/
 docs/

@@ -1,6 +1,6 @@
 import argparse
 from py.model import *  # set ONNX_EXPORT in models.py
-from todo.datasets import *
+from datasets import *
 from utils import *
 import absl.logging as log
 log.set_verbosity(log.INFO)
