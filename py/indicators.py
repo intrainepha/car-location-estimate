@@ -35,8 +35,7 @@ def norm_func(x, mu, sigma):
     Returns:
         TODO
     """
-    pdf = np.exp(-((x - mu)**2) / (2* sigma**2)) / (sigma * np.sqrt(2*np.pi))
-    return pdf
+    return np.exp(-((x - mu)**2) / (2* sigma**2)) / (sigma * np.sqrt(2*np.pi))
 
 def plot_distribution(data:list, savePath:str):
     """TODO
@@ -67,25 +66,28 @@ def plot_distribution(data:list, savePath:str):
     x = np.arange(-eage, eage, 0.1)
     y = norm_func(x, mean, std)
     plt.plot(x, y, '--', color='black')
-    one_sigma = 0 
-    two_sigma = 0
+    one_sigma, two_sigma = 0, 0
     for e in data:
         if -std*2 <= e <= std*2:
             two_sigma += 1
             if -std <= e <= std:
                 one_sigma += 1
-    one_sigma = 100*one_sigma/len(data)
-    two_sigma = 100*two_sigma/len(data)
-    plt.text(-eage+1, max(numb), 
-            "mu={}, sigma={}".format(str(round(mean,3)), str(round(std,3))), 
-            fontsize=8)
-    plt.text(mean+1, max(numb), 
-            "1_sigma={}%, 2_sigma={}%".format(str(round(one_sigma,3)), str(round(two_sigma,3))), 
-            fontsize=8)
+    one_sigma, two_sigma = 100*one_sigma/len(data), 100*two_sigma/len(data)
+    plt.text(
+        -eage+1, 
+        max(numb), 
+        "mu={}, sigma={}".format(str(round(mean,3)), str(round(std,3))), 
+        fontsize=8
+    )
+    plt.text(
+        mean+1,
+        max(numb), 
+        "1_sigma={}%, 2_sigma={}%".format(str(round(one_sigma,3)), str(round(two_sigma,3))), 
+        fontsize=8
+    )
     if not os.path.exists(savePath):
         os.mkdir(savePath)
     plt.savefig(os.path.join(savePath, 'Distribution.jpg'))
-
     return
 
 def cal_depth_indicators(errors, accs):

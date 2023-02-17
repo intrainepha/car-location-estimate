@@ -384,7 +384,7 @@ class Trainer(BaseTask):
         self.model.train()
         end = time.time()
         accumulate = max(round(OPT['accumulate_batch_size'] / OPT['batch_size']), 1)
-        for batch_i, (imgs, targets, paths, _, roi_info) in enumerate(self.train_dataloader):
+        for batch_i, (imgs, targets, paths, _, roi) in enumerate(self.train_dataloader):
             total_batch_i = batch_i + (batches * epoch) 
             imgs = imgs.to(OPT['device']).float() / 255.0  
             targets = targets.to(OPT['device'])
@@ -409,7 +409,7 @@ class Trainer(BaseTask):
             self.model.zero_grad(set_to_none=True)
             # Mixed precision training
             with cuda.amp.autocast():
-                p, p_roidepth = self.model(imgs, roi_info)
+                p, p_roidepth = self.model(imgs, roi)
                 loss, loss_item = compute_loss(p, p_roidepth, targets, self.model)
                 loss *= OPT['batch_size'] / OPT['accumulate_batch_size']
             # Backpropagation
@@ -461,14 +461,15 @@ class Trainer(BaseTask):
             self.train(
                 epoch=epoch, 
                 batches=n_batch,
-                n_burn=max(3*n_batch, 500)
+                n_burn=max(3*n_batch, 500),
+                print_freq=305
             )
-            p, r, map50, f1, maps = self.validate()
+            p, r, map50, f1, maps, dep_acc = self.validate()
             self.tbw.add_scalar("Val/Precision", p, epoch + 1)
             self.tbw.add_scalar("Val/Recall", r, epoch + 1)
             self.tbw.add_scalar("Val/mAP0.5", map50, epoch + 1)
             self.tbw.add_scalar("Val/F1", f1, epoch + 1)
-            print("\n")
+            self.tbw.add_scalar("Val/Acc@dep", dep_acc, epoch + 1)
             self.scaheduler.step()
             # Automatically save model weights
             is_best = map50 > best_map50
@@ -644,39 +645,40 @@ class Tester(BaseTask):
         seen = 0
         model.eval()
         # Format print information
-        s = ("%20s" + "%10s" * 6) % ("Class", "Images", "Targets", "P", "R", "mAP@0.5", "F1")
+        s = ("%20s" + "%10s" * 7) % ("Class", "Images", "Targets", "P", "R", "mAP@0.5", "F1", "Acc@dep")
         p, r, f1, mp, mr, map50, mf1 = 0., 0., 0., 0., 0., 0., 0.
-        jdict, stats, ap, ap_class = [], [], [], []
-
-        for _, (imgs, targets, _, _, roi_info) in enumerate(tqdm.tqdm(test_dataloader, desc=s)):
+        jdict, stats, ap, ap_class, dep_errs = [], [], [], [],[]
+        for _, (imgs, targets, _, _, roi) in enumerate(tqdm.tqdm(test_dataloader, desc=s)):
             imgs = imgs.to(device).float() / 255.0  # uint8 to float32, 0 - 255 to 0.0 - 1.0
             targets = targets.to(device)
             _, _, height, width = imgs.shape  # batch size, channels, height, width
             whwh = torch.Tensor([width, height, width, height]).to(device)
-            # Inference
             with torch.no_grad():
-                # Run model
-                output, _, depth_output = model(imgs, roi_info)  # inference and training outputs
-                # Run NMS
+                output, _, depth_output = model(imgs, roi)  # inference and training outputs
                 output = non_max_suppression(output, conf_threshold, iou_threshold)
             # Statistics per image
-            for si, pred in enumerate(output):
+            for si, pred in enumerate(zip(output, depth_output)):
+                pred_obj, pred_dep = pred
                 labels = targets[targets[:, 0] == si, 1:]
-                nl = len(labels)
-                target_classes = labels[:, 0].tolist() if nl else []  # target class
+                n_labels = len(labels)
+                target_classes = labels[:, 0].tolist() if n_labels else []  # target class
                 seen += 1
-                if pred is None:
-                    if nl:
-                        stats.append((torch.zeros(0, niou, dtype=torch.bool),
-                                    torch.Tensor(),
-                                    torch.Tensor(),
-                                    target_classes))
+                if pred_obj is None:
+                    if n_labels:
+                        stats.append(
+                            (
+                                torch.zeros(0, niou, dtype=torch.bool),
+                                torch.Tensor(),
+                                torch.Tensor(),
+                                target_classes
+                            )
+                        )
                     continue
                 # Clip boxes to image bounds
-                clip_coords(pred, (height, width))
+                clip_coords(pred_obj, (height, width))
                 # Assign all predictions as incorrect
-                correct = torch.zeros(pred.shape[0], niou, dtype=torch.bool, device=device)
-                if nl:
+                correct = torch.zeros(pred_obj.shape[0], niou, dtype=torch.bool, device=device)
+                if n_labels:
                     detected = []  # target indices
                     target_classes_tensor = labels[:, 0]
                     # target boxes
@@ -684,21 +686,23 @@ class Tester(BaseTask):
                     # Per target class
                     for cls in torch.unique(target_classes_tensor):
                         ti = (cls == target_classes_tensor).nonzero().view(-1)  # target indices
-                        pi = (cls == pred[:, 5]).nonzero().view(-1)  # prediction indices
+                        pi = (cls == pred_obj[:, 5]).nonzero().view(-1)  # prediction indices
                         # Search for detections
                         if pi.shape[0]:
                             # Prediction to target ious
-                            ious, i = boxes.box_iou(pred[pi, :4], tbox[ti]).max(1)  # best ious, indices
+                            ious, i = boxes.box_iou(pred_obj[pi, :4], tbox[ti]).max(1)  # best ious, indices
                             # Append detections
                             for j in (ious > iouv[0]).nonzero():
                                 d = ti[i[j]]  # detected target
                                 if d not in detected:
                                     detected.append(d)
                                     correct[pi[j]] = ious[j] > iouv
-                                    if len(detected) == nl:  # all targets already located in image
+                                    if len(detected) == n_labels:  # all targets already located in image
                                         break
+                dep_err = abs(labels[:, 5] - pred_dep).cpu()
+                dep_errs.append(dep_err)
                 # Append statistics (correct, conf, pcls, target_classes)
-                stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), target_classes))
+                stats.append((correct.cpu(), pred_obj[:, 4].cpu(), pred_obj[:, 5].cpu(), target_classes))
         # Compute statistics
         stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
         if len(stats):
@@ -709,9 +713,11 @@ class Tester(BaseTask):
             nt = np.bincount(stats[3].astype(np.int64), minlength=model.num_classes)  # number of targets per class
         else:
             nt = torch.zeros(1)
+        # dep_acc = np.mean([e[0] for e in dep_errs]) if len(dep_errs)!=0 else 0
+        dep_acc = np.mean([e[0] for e in dep_errs])
         # Print results
-        pf = "%20s" + "%10.3g" * 6  # print format
-        print(pf % ("all", seen, nt.sum(), mp, mr, map50, mf1))
+        pf = "%20s" + "%10.3g" * 7  # print format
+        print(pf % ("all", seen, nt.sum(), mp, mr, map50, mf1, dep_acc))
         # Print results per class
         if verbose and model.num_classes > 1 and len(stats):
             for i, c in enumerate(ap_class):
@@ -720,7 +726,7 @@ class Tester(BaseTask):
         maps = np.zeros(model.num_classes) + map50
         for ap_index, c in enumerate(ap_class):
             maps[c] = ap[ap_index]
-        return mp, mr, map50, mf1, maps
+        return mp, mr, map50, mf1, maps, dep_acc
 
     def go(self):
         """pass

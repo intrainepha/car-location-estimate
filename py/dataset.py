@@ -962,7 +962,7 @@ class LoadImagesAndLabels(Dataset):
         if self.mosaic:
             # Load mosaic
             # image, labels = load_mosaic(self, index)
-            image, labels, roi_labels = load_mosaic(self, index) # ADAPTATION
+            image, labels, roi = load_mosaic(self, index) # ADAPTATION
             shapes = None
 
         else:
@@ -985,7 +985,7 @@ class LoadImagesAndLabels(Dataset):
                 labels[:, 2] = ratio[1] * h * (x[:, 2] - x[:, 4] / 2) + pad[1]  # pad height
                 labels[:, 3] = ratio[0] * w * (x[:, 1] + x[:, 3] / 2) + pad[0]
                 labels[:, 4] = ratio[1] * h * (x[:, 2] + x[:, 4] / 2) + pad[1]
-            roi_labels =  [x[:, -4], x[:, -3], x[:, -2], x[:, -1]] # ADAPTATION
+            roi =  [x[:, -4], x[:, -3], x[:, -2], x[:, -1]] # ADAPTATION
 
         if self.augment:
             # Augment imagespace
@@ -1043,13 +1043,13 @@ class LoadImagesAndLabels(Dataset):
             image = F_vision.rgb_to_grayscale(image)
 
         # return image, labels_out, self.image_files[index], shapes
-        return image, labels_out, self.image_files[index], shapes, roi_labels # ADAPTATION
+        return image, labels_out, self.image_files[index], shapes, roi # ADAPTATION
 
     @staticmethod
     def collate_fn(batch):
         # image, label, path, shapes = zip(*batch)  # transposed
-        image, label, path, shapes, roi_labels = zip(*batch)  # ADAPTATION
+        image, label, path, shapes, roi = zip(*batch)  # ADAPTATION
         for i, l in enumerate(label):
             l[:, 0] = i  # add target image index for build_targets()
         # return torch.stack(image, 0), torch.cat(label, 0), path, shapes
-        return torch.stack(image, 0), torch.cat(label, 0), path, shapes, roi_labels # ADAPTATION
+        return torch.stack(image, 0), torch.cat(label, 0), path, shapes, roi # ADAPTATION
