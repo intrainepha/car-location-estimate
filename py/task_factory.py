@@ -1,4 +1,6 @@
-import math, os, random, time, yaml, tqdm
+import cv2, math, os, random, time, yaml
+from tqdm import tqdm
+from pathlib import Path
 import numpy as np
 import torch
 from torch import nn, optim, cuda
@@ -8,10 +10,10 @@ from torch.optim.swa_utils import AveragedModel
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.ops import boxes
-from dataset import parse_dataset_config, labels_to_class_weights, LoadImagesAndLabels
+from dataset import parse_dataset_config, labels_to_class_weights, LoadImagesAndLabels, LoadImages
 from utils import load_pretrained_torch_state_dict, load_pretrained_darknet_state_dict, \
     save_torch_state_dict, AverageMeter, ProgressMeter, plot_images, non_max_suppression, \
-    clip_coords, xywh2xyxy, ap_per_class, load_classes
+    clip_coords, xywh2xyxy, xyxy2xywh, ap_per_class, load_classes, scale_coords, plot_one_box
 from model import Darknet, compute_loss
 from wrapper import timer
 from indicators import collect_depth, cal_depth_indicators
@@ -19,8 +21,6 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Callable
 import absl.logging as log
 log.set_verbosity(log.INFO)
-
-Y_RANGE = 80
 
 def get(task:str='train') -> Callable:
     """pass
@@ -41,7 +41,6 @@ def get(task:str='train') -> Callable:
         detect = Detector
     )
     assert task in pool.keys(), "task {} does not exist !".format(task)
-
     return pool[task]
 
 class BaseTask(ABC):
@@ -82,21 +81,6 @@ class BaseTask(ABC):
         classes (int):        filter by class
         agnostic_nms(bool):   class-agnostic NMS
     """
-
-    @abstractmethod
-    def _load_options(self) -> Dict[str, Any]:
-        """pass
-
-        Args:
-            pass
-
-        Raises:
-            pass
-
-        Returns:
-            pass
-        """
-        pass
 
     @abstractmethod
     def _build_dataset(self):
@@ -155,7 +139,6 @@ class Trainer(BaseTask):
 
     """
 
-
     def __init__(self):
         """pass
 
@@ -192,7 +175,13 @@ class Trainer(BaseTask):
         else:
             print("Pretrained model weights not found.")
         self.scaheduler = self.define_scheduler(self.optimizer, self.start_epoch, OPT['epochs'])
-        self.tbw = SummaryWriter(os.path.join("logs", os.path.basename(OPT['net_cfg']).split('.')[0]))
+        self.tbw = SummaryWriter(
+            os.path.join(
+                "logs", 
+                os.path.basename(OPT['net_cfg']).split('.')[0],
+                time.strftime("%Y%m%d%H%M%S", time.localtime())
+            )
+        )
         log.info('Start Tensorboard with "tensorboard --logdir=logs", view at http://localhost:6006/')
         iouv = torch.linspace(0.5, 0.95, 10).to(OPT['device'])  # iou vector for mAP@0.5:0.95
         self.iouv = iouv[0].view(1)  # comment for mAP@0.5:0.95
@@ -227,7 +216,7 @@ class Trainer(BaseTask):
         HYP["cls"] *= n_classes / 80
         train_dataset = LoadImagesAndLabels(
             path=dataset_dict["train"],
-            image_size=OPT['img_size_max'],
+            image_size=OPT['img_size'],
             batch_size=OPT['batch_size'],
             augment=OPT['augment'],
             hyper_parameters_dict=HYP,
@@ -238,7 +227,7 @@ class Trainer(BaseTask):
         )
         val_dataset = LoadImagesAndLabels(
             path=dataset_dict["valid"],
-            image_size=OPT['val_img_size'],
+            image_size=OPT['img_size'],
             batch_size=OPT['batch_size'],
             augment=OPT['augment'],
             hyper_parameters_dict=HYP,
@@ -282,10 +271,9 @@ class Trainer(BaseTask):
             pass
         """
 
-        # model = ROIEstNet(image_size=[OPT['img_size_max'], OPT['img_size_max']]).to(OPT['device'])
         model = Darknet(
             OPT['net_cfg'], 
-            image_size=(OPT['img_size_max'], OPT['img_size_max']),
+            image_size=(OPT['img_size'], OPT['img_size']),
             gray=OPT['gray']
         )
         model = model.to(OPT['device'])
@@ -316,11 +304,9 @@ class Trainer(BaseTask):
         Returns:
             pass
         """
-
-        tag = 'batch_sample'
         plotted_img = plot_images(images=imgs, targets=targets, paths=paths)
-        if self.tbw:
-            self.tbw.add_image(tag, plotted_img, dataformats='HWC', global_step=step)
+        tag = 'batch_sample'
+        self.tbw.add_image(tag, plotted_img, dataformats='HWC', global_step=step) if self.tbw else None
         return
 
     def validate(self):
@@ -341,7 +327,6 @@ class Trainer(BaseTask):
             names=self.names,
             conf_threshold=OPT['conf_threshold'],
             iou_threshold=OPT['iou_threshold'],
-            augment=OPT['augment'],
             iouv=self.iouv,
             niou=self.niou,
             verbose=OPT['verbose'],
@@ -511,7 +496,6 @@ class Trainer(BaseTask):
         optimizer.add_param_group({"params": weight_decay, "weight_decay": OPT['optim_weight_decay']})
         optimizer.add_param_group({"params": biases})
         del optim_group, weight_decay, biases
-
         return optimizer
 
     def define_scheduler(self, optimizer: optim.SGD, start_epoch: int, epochs: int) -> lr_scheduler.LambdaLR:
@@ -530,7 +514,6 @@ class Trainer(BaseTask):
         lf = lambda x: (((1 + math.cos(x * math.pi / epochs)) / 2) ** 1.0) * 0.95 + 0.05  # cosine
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
         scheduler.last_epoch = start_epoch - 1
-
         return scheduler
     
 class Tester(BaseTask):
@@ -571,7 +554,7 @@ class Tester(BaseTask):
         self.iouv = iouv[0].view(1)  # comment for mAP@0.5:0.95
         self.niou = iouv.numel()
 
-    def _load_options(self, path:str):
+    def _load_options(self, path:str) -> None:
         """pass
 
         Args:
@@ -583,10 +566,11 @@ class Tester(BaseTask):
         Returns:
             pass
         """
-
+        global OPT
         with open(path, 'r') as f:
-            opt = yaml.load(f, Loader=yaml.CLoader).get('test')
-        log.info(opt)
+            OPT = yaml.load(f, Loader=yaml.CLoader).get('test')
+        log.info(OPT)
+        return
 
     def _build_dataset(self) -> tuple[nn.Module, int, list]:
         dataset_dict = parse_dataset_config(OPT['data_cfg'])
@@ -636,7 +620,6 @@ class Tester(BaseTask):
         names: list,
         conf_threshold: float,
         iou_threshold: float,
-        augment: bool,
         iouv: torch.Tensor,
         niou: int,
         verbose: bool = False,
@@ -648,7 +631,7 @@ class Tester(BaseTask):
         s = ("%20s" + "%10s" * 7) % ("Class", "Images", "Targets", "P", "R", "mAP@0.5", "F1", "Acc@dep")
         p, r, f1, mp, mr, map50, mf1 = 0., 0., 0., 0., 0., 0., 0.
         jdict, stats, ap, ap_class, dep_errs = [], [], [], [],[]
-        for _, (imgs, targets, _, _, roi) in enumerate(tqdm.tqdm(test_dataloader, desc=s)):
+        for _, (imgs, targets, _, _, roi) in enumerate(tqdm(test_dataloader, desc=s)):
             imgs = imgs.to(device).float() / 255.0  # uint8 to float32, 0 - 255 to 0.0 - 1.0
             targets = targets.to(device)
             _, _, height, width = imgs.shape  # batch size, channels, height, width
@@ -742,7 +725,6 @@ class Tester(BaseTask):
         """
         pass
 
-
 class Detector(BaseTask):
     """
     pass
@@ -754,8 +736,7 @@ class Detector(BaseTask):
         pass
 
     """
-
-    def run(self):
+    def __init__(self):
         """pass
 
         Args:
@@ -767,9 +748,209 @@ class Detector(BaseTask):
         Returns:
             pass
         """
+        self._load_options('config.yaml')
+        OPT['device'] = torch.device(OPT['device'])
+        self.names = OPT['names'].split(',')
+        self.names = list(filter(None, self.names))
+        self.colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(self.names))]
+        self.dataset = self._build_dataset()
+        self.model = self._build_model() 
+
+    def go(self) -> None:
+        """pass
+
+        Args:
+            pass
+
+        Raises:
+            pass
+
+        Returns:
+            None
+        """
+        self._detect(
+            self.model,
+            self.dataset,
+            names=OPT['names'],
+            colors=self.colors,
+            show_image=OPT['show_image'],
+            save_image=OPT['save_image'],
+            save_txt=OPT['save_txt'],
+            fourcc=OPT['fourcc'],
+            detect_results_dir=OPT['detect_results_dir'],
+            conf_threshold=OPT['conf_threshold'],
+            iou_threshold=OPT['iou_threshold'],
+            filter_classes=OPT['filter_classes'],
+            agnostic_nms=OPT['agnostic_nms'],
+            device=OPT['device']
+        )
+        return
+
+    def _load_options(self, path:str) -> None:
+        """pass
+
+        Args:
+            pass
+
+        Raises:
+            pass
+
+        Returns:
+            pass
+        """
+        global OPT
+        with open(path, 'r') as f:
+            OPT = yaml.load(f, Loader=yaml.CLoader).get('detect')
+        log.info(OPT)
+        return
+
+    def _build_dataset(self) -> Any:
+        """pass
+
+        Args:
+            pass
+
+        Raises:
+            pass
+
+        Returns:
+            None
+        """
+        # TODO: change to LoadImagesAndLabels
+        return LoadImages(OPT['imgs_dir'], image_size=OPT['img_size'])
+
+    def _build_model(self) -> nn.Module:
+        """Initialize YOLO model
+
+        Args:
+            model_arch_name (str): Model architecture name
+            model_weights_path (str, optional): Model weights path. Default: ``None``.
+            device (torch.device, optional): Model processing equipment. Default: ``torch.device("cpu")``.
+            half (bool, optional): Whether to use half precision. Default: ``False``.
+            fuse (bool, optional): Whether to fuse model. Default: ``False``.
+
+        Returns:
+            model (nn.Module): YOLO model
+
+        """
+        model = Darknet(
+            OPT['net_cfg'], 
+            image_size=(OPT['img_size'], OPT['img_size']),
+            gray=OPT['gray']
+        )
+        # Load the pre-trained model weights
+        if OPT['weights'].endswith(".pth.tar"):
+            model = load_pretrained_torch_state_dict(model, OPT['weights'])
+        elif OPT['weights'].endswith(".weights"):
+            load_pretrained_darknet_state_dict(model, OPT['weights'])
+        else:
+            raise "The model weights path is not correct."
+        log.info(f"Loaded `{OPT['weights']}` pretrained model weights successfully.")
+        model = model.to(device=OPT['device'])
+        model.fuse() if OPT['fuse'] else None 
+        return model
+
+
+    def _detect(
+        self,
+        model: nn.Module,
+        dataset: LoadImages,
+        names: list[str] = None,
+        colors: list[list[int]] = None,
+        show_image: bool = False,
+        save_image: bool = False,
+        save_txt: bool = False,
+        fourcc: str = "mp4v",
+        detect_results_dir: str = None,
+        conf_threshold: float = 0.3,
+        iou_threshold: float = 0.5,
+        augment: bool = False,
+        filter_classes: list[int] = None,
+        agnostic_nms: bool = False,
+        device: torch.device = torch.device("cpu"),
+    ) -> None:
+        """Detect
+
+        Args:
+            model (nn.Module): YOLO model
+            dataset (LoadStreams or LoadImages): Dataset
+            names (list[str], optional): Class names. Default: ``None``.
+            colors (list[list[int]], optional): Class colors. Default: ``None``.
+            show_image (bool, optional): Whether to show image. Default: ``False``.
+            save_image (bool, optional): Whether to save image. Default: ``False``.
+            save_txt (bool, optional): Whether to save txt. Default: ``False``.
+            fourcc (str, optional): Video codec. Default: ``"mp4v"``.
+            detect_results_dir (str, optional): Detect result directory. Default: ``None``.
+            conf_threshold (float, optional): Confidence threshold. Default: ``0.001``.
+            iou_threshold (float, optional): IoU threshold. Default: ``0.5``.
+            augment (bool, optional): Whether to use data augmentation. Default: ``False``.
+            filter_classes (list[int], optional): Filter classes. Default: ``None``.
+            agnostic_nms (bool, optional): Whether to use agnostic nms. Default: ``False``.
+            device (torch.device, optional): Model processing equipment. Default: ``torch.device("cpu")``.
+
+        Returns:
+            None
+
+        """
+        model.eval()
+        for input_path, image, raw_image, video_capture in dataset:
+            image = image.to(device).float()
+            # image = image.float()
+            image /= 255.0
+            if image.ndimension() == 3:
+                image = image.unsqueeze(0)
+            with torch.no_grad():
+                output = model(image)[0]
+            output = non_max_suppression(
+                output, conf_threshold, iou_threshold,
+                False, filter_classes, agnostic_nms
+            )
+            # Process detections
+            for detect_index, detect_result in enumerate(output):
+                path, results, raw_frame = input_path, "", raw_image
+                save_path = str(Path(detect_results_dir) / Path(path).name)
+                results += f"{image.shape[2]}x{image.shape[3]} "
+                gn = torch.tensor(raw_frame.shape)[[1, 0, 1, 0]]
+                if detect_result is not None and len(detect_result):
+                    # Rescale boxes from image_size to raw_frame size
+                    detect_result[:, :4] = scale_coords(
+                        image.shape[2:], detect_result[:, :4], raw_frame.shape
+                    ).round()
+                    # Print results
+                    for c in detect_result[:, -1].unique():
+                        number = (detect_result[:, -1] == c).sum()  # detections per class
+                        results += f"{number} {names[int(c)]}, "
+                    # Write results
+                    for *xyxy, confidence, classes in reversed(detect_result):
+                        if save_txt:  # Write to file
+                            xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+                            with open(save_path[:save_path.rfind(".")] + ".txt", "a") as file:
+                                file.write(("%g " * 5 + "\n") % (classes, *xywh))  # label format
+                        if save_image or show_image:  # Add bbox to image
+                            label = f"{names[int(classes)]} {confidence:.2f}"
+                            plot_one_box(xyxy, raw_frame, label=label, color=colors[int(classes)])
+                # Print result
+                log.info(results)
+                # Stream results
+                if show_image:
+                    cv2.imshow(path, raw_frame)
+                    if cv2.waitKey(1) == ord("q"):
+                        raise StopIteration
+                # Save results (image with detections)
+                if save_image:
+                    if dataset.mode == "images":
+                        cv2.imwrite(save_path, raw_frame)
+                    else:
+                        vid_writer.release()
+                        fps = video_capture.get(cv2.CAP_PROP_FPS)
+                        w = int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        h = int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
+                        vid_writer.write(raw_frame)
+        return
 
 if __name__=="__main__":
-    # Train
-    task = Trainer()
+    # task = Trainer()
+    task = Detector()
     task.go()
     exit(0)
