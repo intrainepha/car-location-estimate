@@ -6,6 +6,9 @@ indicators/
 docs/
 *.jpg
 results.*
+.DS_Store
+.DS_Store?
+**/.DS_Store
  
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -136,3 +139,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+# Added by cargo
+
+/target

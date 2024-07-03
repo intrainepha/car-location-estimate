@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["examples/*"]
+
+[workspace.package]
+name = "car-location-estimation"
+authors = ["intrainepha <intrainepha@gmail.com>"]
+version = "0.1.0"
+edition = "2021"
+
+[workspace.dependencies]
+log = { version = "0.4.21", default-features = false }
+serde = { version = "1.0.203", default-features = false, features = [
+    "derive",
+    "alloc",
+] }
+burn = { version = "0.13.2", features = ["train", "wgpu", "vision"] }
